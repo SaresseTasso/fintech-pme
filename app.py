@@ -32,10 +32,6 @@ st.set_page_config(
 initialize_database()
 
 entreprise_id = obtenir_entreprise_par_defaut()
-total_recettes = calculer_total_recettes(entreprise_id)
-total_depenses = calculer_total_depenses(entreprise_id)
-resultat = total_recettes - total_depenses
-solde_actuel = resultat
 
 # --------------------------------------------------
 # STYLE
@@ -103,16 +99,16 @@ with st.sidebar:
     st.divider()
 
     menu = st.radio(
-    "Navigation",
-    [
-        "📊 Tableau de bord",
-        "💰 Recettes",
-        "💸 Dépenses",
-        "🏦 Trésorerie",
-        "📈 Rapports",
-        "⚙️ Paramètres"
-    ]
-)
+        "Navigation",
+        [
+            "📊 Tableau de bord",
+            "💰 Recettes",
+            "💸 Dépenses",
+            "🏦 Trésorerie",
+            "📈 Rapports",
+            "⚙️ Paramètres"
+        ]
+    )
 
     st.divider()
 
@@ -127,16 +123,17 @@ if menu == "📊 Tableau de bord":
 
     solde_initial = obtenir_solde_initial(entreprise_id)
 
-total_recettes = calculer_total_recettes(entreprise_id)
-total_depenses = calculer_total_depenses(entreprise_id)
+    total_recettes = calculer_total_recettes(entreprise_id)
 
-resultat = total_recettes - total_depenses
+    total_depenses = calculer_total_depenses(entreprise_id)
 
-solde_actuel = (
-    solde_initial
-    + total_recettes
-    - total_depenses
-)
+    resultat = total_recettes - total_depenses
+
+    solde_actuel = (
+        solde_initial
+        + total_recettes
+        - total_depenses
+    )
 
     st.title("Tableau de bord")
 
@@ -156,6 +153,7 @@ solde_actuel = (
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
+
         st.markdown(
             f"""
             <div class="metric-card">
@@ -169,6 +167,7 @@ solde_actuel = (
         )
 
     with col2:
+
         st.markdown(
             f"""
             <div class="metric-card">
@@ -182,6 +181,7 @@ solde_actuel = (
         )
 
     with col3:
+
         st.markdown(
             f"""
             <div class="metric-card">
@@ -195,6 +195,7 @@ solde_actuel = (
         )
 
     with col4:
+
         st.markdown(
             f"""
             <div class="metric-card">
@@ -212,23 +213,8 @@ solde_actuel = (
         unsafe_allow_html=True
     )
 
-    chart_data = {
-        "Mois": [
-            "Mai",
-            "Juin",
-            "Juillet",
-            "Août",
-            "Septembre",
-            "Octobre"
-        ],
-        "Recettes": [0, 0, 0, 0, 0, 0],
-        "Dépenses": [0, 0, 0, 0, 0, 0]
-    }
-
-    st.line_chart(
-        chart_data,
-        x="Mois",
-        y=["Recettes", "Dépenses"]
+    st.info(
+        "Le graphique dynamique sera ajouté dans une prochaine étape."
     )
 
     st.markdown(
@@ -237,7 +223,7 @@ solde_actuel = (
     )
 
     st.info(
-        "Les dernières transactions seront affichées ici."
+        "La liste des dernières transactions sera ajoutée prochainement."
     )
 
 
@@ -254,8 +240,6 @@ elif menu == "💰 Recettes":
     )
 
     st.divider()
-
-    # FORMULAIRE
 
     st.subheader("➕ Ajouter une recette")
 
@@ -340,8 +324,6 @@ elif menu == "💰 Recettes":
                     "Recette enregistrée avec succès."
                 )
 
-    # LISTE DES RECETTES
-
     st.divider()
 
     st.subheader("📋 Historique des recettes")
@@ -352,7 +334,6 @@ elif menu == "💰 Recettes":
 
         for recette in recettes:
 
-            recette_id = recette[0]
             date_r = recette[1]
             montant_r = recette[2]
             categorie_r = recette[3]
@@ -365,21 +346,31 @@ elif menu == "💰 Recettes":
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
+
                     st.write(f"**Date :** {date_r}")
-                    st.write(f"**Catégorie :** {categorie_r}")
+
+                    st.write(
+                        f"**Catégorie :** {categorie_r}"
+                    )
 
                 with col2:
+
                     st.write(
-                        f"**Montant :** {montant_r:,.0f} FCFA"
+                        f"**Montant :** "
+                        f"{montant_r:,.0f} FCFA"
                     )
+
                     st.write(
-                        f"**Source :** {source_r or 'Non renseignée'}"
+                        f"**Source :** "
+                        f"{source_r or 'Non renseignée'}"
                     )
 
                 with col3:
+
                     st.write(
                         f"**Paiement :** {paiement_r}"
                     )
+
                     st.write(
                         f"**Description :** "
                         f"{description_r or 'Aucune'}"
@@ -393,7 +384,7 @@ elif menu == "💰 Recettes":
 
 
 # --------------------------------------------------
-# DÉPENSES
+# DEPENSES
 # --------------------------------------------------
 
 elif menu == "💸 Dépenses":
@@ -405,8 +396,6 @@ elif menu == "💸 Dépenses":
     )
 
     st.divider()
-
-    # FORMULAIRE
 
     st.subheader("➕ Ajouter une dépense")
 
@@ -496,8 +485,6 @@ elif menu == "💸 Dépenses":
                     "Dépense enregistrée avec succès."
                 )
 
-    # HISTORIQUE
-
     st.divider()
 
     st.subheader("📋 Historique des dépenses")
@@ -508,7 +495,6 @@ elif menu == "💸 Dépenses":
 
         for depense in depenses:
 
-            depense_id = depense[0]
             date_d = depense[1]
             montant_d = depense[2]
             categorie_d = depense[3]
@@ -521,22 +507,31 @@ elif menu == "💸 Dépenses":
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
+
                     st.write(f"**Date :** {date_d}")
-                    st.write(f"**Catégorie :** {categorie_d}")
+
+                    st.write(
+                        f"**Catégorie :** {categorie_d}"
+                    )
 
                 with col2:
+
                     st.write(
-                        f"**Montant :** {montant_d:,.0f} FCFA"
+                        f"**Montant :** "
+                        f"{montant_d:,.0f} FCFA"
                     )
+
                     st.write(
                         f"**Bénéficiaire :** "
                         f"{beneficiaire_d or 'Non renseigné'}"
                     )
 
                 with col3:
+
                     st.write(
                         f"**Paiement :** {paiement_d}"
                     )
+
                     st.write(
                         f"**Description :** "
                         f"{description_d or 'Aucune'}"
@@ -548,16 +543,54 @@ elif menu == "💸 Dépenses":
             "Aucune dépense enregistrée pour le moment."
         )
 
+
 # --------------------------------------------------
-# TRÉSORERIE
+# TRESORERIE
 # --------------------------------------------------
 
 elif menu == "🏦 Trésorerie":
 
     st.title("🏦 Trésorerie")
 
-    st.info(
-        "Le module de suivi de la trésorerie sera développé prochainement."
+    solde_initial = obtenir_solde_initial(entreprise_id)
+
+    total_recettes = calculer_total_recettes(entreprise_id)
+
+    total_depenses = calculer_total_depenses(entreprise_id)
+
+    solde_actuel = (
+        solde_initial
+        + total_recettes
+        - total_depenses
+    )
+
+    st.subheader("Situation de trésorerie")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric(
+            "Solde initial",
+            f"{solde_initial:,.0f} FCFA"
+        )
+
+    with col2:
+        st.metric(
+            "Entrées",
+            f"{total_recettes:,.0f} FCFA"
+        )
+
+    with col3:
+        st.metric(
+            "Sorties",
+            f"{total_depenses:,.0f} FCFA"
+        )
+
+    st.divider()
+
+    st.metric(
+        "Solde actuel",
+        f"{solde_actuel:,.0f} FCFA"
     )
 
 
@@ -569,8 +602,13 @@ elif menu == "📈 Rapports":
 
     st.title("📈 Rapports")
 
+    st.info(
+        "Le module de rapports financiers sera développé prochainement."
+    )
+
+
 # --------------------------------------------------
-# PARAMÈTRES
+# PARAMETRES
 # --------------------------------------------------
 
 elif menu == "⚙️ Paramètres":
@@ -609,7 +647,3 @@ elif menu == "⚙️ Paramètres":
         st.success(
             "Solde initial enregistré avec succès."
         )
-
-    st.info(
-        "Le module de rapports financiers sera développé prochainement."
-    )
