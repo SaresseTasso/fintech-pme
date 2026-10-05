@@ -1,21 +1,16 @@
 import sqlite3
 
-
 DATABASE_NAME = "fintech_pme.db"
 
 
 def get_connection():
-    """Créer une connexion à la base de données."""
     return sqlite3.connect(DATABASE_NAME)
 
 
 def initialize_database():
-    """Créer les tables nécessaires à l'application."""
-
     connection = get_connection()
     cursor = connection.cursor()
 
-    # Table des entreprises
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS entreprises (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,7 +23,6 @@ def initialize_database():
         )
     """)
 
-    # Table des utilisateurs
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS utilisateurs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,7 +35,6 @@ def initialize_database():
         )
     """)
 
-    # Table des recettes
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS recettes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,7 +50,6 @@ def initialize_database():
         )
     """)
 
-    # Table des dépenses
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS depenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,3 +67,66 @@ def initialize_database():
 
     connection.commit()
     connection.close()
+
+
+def ajouter_recette(
+    entreprise_id,
+    date,
+    montant,
+    categorie,
+    source,
+    moyen_paiement,
+    description
+):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        INSERT INTO recettes (
+            entreprise_id,
+            date,
+            montant,
+            categorie,
+            source,
+            moyen_paiement,
+            description
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        entreprise_id,
+        date,
+        montant,
+        categorie,
+        source,
+        moyen_paiement,
+        description
+    ))
+
+    connection.commit()
+    connection.close()
+
+
+def recuperer_recettes(entreprise_id):
+    connection = get_connection()
+
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT
+            id,
+            date,
+            montant,
+            categorie,
+            source,
+            moyen_paiement,
+            description
+        FROM recettes
+        WHERE entreprise_id = ?
+        ORDER BY date DESC, id DESC
+    """, (entreprise_id,))
+
+    recettes = cursor.fetchall()
+
+    connection.close()
+
+    return recettes
