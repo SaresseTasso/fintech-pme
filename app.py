@@ -206,70 +206,35 @@ if menu == "📊 Tableau de bord":
     )
 
 
-    # --------------------------------------------------------
-    # INDICATEURS PRINCIPAUX
-    # --------------------------------------------------------
+# --------------------------------------------------------
+# INDICATEURS PRINCIPAUX
+# --------------------------------------------------------
 
-    col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4 = st.columns(4)
 
-    with col1:
+with col1:
+    st.metric(
+        "Solde actuel",
+        f"{solde_actuel:,.0f} FCFA"
+    )
 
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <div class="metric-title">
-                    Solde actuel
-                </div>
+with col2:
+    st.metric(
+        "Total des recettes",
+        f"{total_recettes:,.0f} FCFA"
+    )
 
-                <div class="metric-value">
-                    {solde_actuel:,.0f} FCFA
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+with col3:
+    st.metric(
+        "Total des dépenses",
+        f"{total_depenses:,.0f} FCFA"
+    )
 
-    with col2:
-
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <div class="metric-title">
-                    Total des recettes
-                </div>
-
-                <div class="metric-value positive">
-                    {total_recettes:,.0f} FCFA
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    with col3:
-
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <div class="metric-title">
-                    Total des dépenses
-                </div>
-
-                <div class="metric-value negative">
-                    {total_depenses:,.0f} FCFA
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-    with col4:
-
-        resultat_class = (
-            "positive"
-            if resultat >= 0
-            else "negative"
-        )
+with col4:
+    st.metric(
+        "Résultat",
+        f"{resultat:,.0f} FCFA"
+    )
 
         st.markdown(
             f"""
