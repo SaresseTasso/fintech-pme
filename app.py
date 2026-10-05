@@ -3,6 +3,7 @@ from datetime import date, datetime
 from collections import defaultdict
 import csv
 import io
+import pandas as pd
 
 from database import (
     initialize_database,
@@ -647,47 +648,49 @@ elif menu == "💰 Recettes":
 
             recettes_filtrees.append(recette)
 
-    # --------------------------------------------------------
-    # EXPORT
+        # --------------------------------------------------------
+    # EXPORT EXCEL
     # --------------------------------------------------------
 
     st.subheader("📥 Exporter")
 
-    sortie = io.StringIO()
-
-    writer = csv.writer(
-        sortie
-    )
-
-    writer.writerow(
-        [
-            "Date",
-            "Montant",
-            "Catégorie",
-            "Source / Client",
-            "Moyen de paiement",
-            "Description"
-        ]
-    )
+    donnees_excel = []
 
     for recette in recettes_filtrees:
 
-        writer.writerow(
-            [
-                recette[1],
-                recette[2],
-                recette[3],
-                recette[4] or "",
-                recette[5] or "",
-                recette[6] or ""
-            ]
+        donnees_excel.append(
+            {
+                "Date": recette[1],
+                "Montant (FCFA)": recette[2],
+                "Catégorie": recette[3],
+                "Source / Client": recette[4] or "",
+                "Moyen de paiement": recette[5] or "",
+                "Description": recette[6] or ""
+            }
+        )
+
+    df_recettes = pd.DataFrame(
+        donnees_excel
+    )
+
+    sortie_excel = io.BytesIO()
+
+    with pd.ExcelWriter(
+        sortie_excel,
+        engine="openpyxl"
+    ) as writer:
+
+        df_recettes.to_excel(
+            writer,
+            index=False,
+            sheet_name="Recettes"
         )
 
     st.download_button(
-        "📥 Télécharger les recettes en CSV",
-        data=sortie.getvalue(),
-        file_name="recettes_fintech_pme.csv",
-        mime="text/csv",
+        "📊 Télécharger les recettes en Excel",
+        data=sortie_excel.getvalue(),
+        file_name="recettes_fintech_pme.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
 
