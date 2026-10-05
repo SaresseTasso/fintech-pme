@@ -167,3 +167,63 @@ def obtenir_entreprise_par_defaut():
     connection.close()
 
     return entreprise_id
+def ajouter_depense(
+    entreprise_id,
+    date,
+    montant,
+    categorie,
+    beneficiaire,
+    moyen_paiement,
+    description
+):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        INSERT INTO depenses (
+            entreprise_id,
+            date,
+            montant,
+            categorie,
+            beneficiaire,
+            moyen_paiement,
+            description
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        entreprise_id,
+        date,
+        montant,
+        categorie,
+        beneficiaire,
+        moyen_paiement,
+        description
+    ))
+
+    connection.commit()
+    connection.close()
+
+
+def recuperer_depenses(entreprise_id):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT
+            id,
+            date,
+            montant,
+            categorie,
+            beneficiaire,
+            moyen_paiement,
+            description
+        FROM depenses
+        WHERE entreprise_id = ?
+        ORDER BY date DESC, id DESC
+    """, (entreprise_id,))
+
+    depenses = cursor.fetchall()
+
+    connection.close()
+
+    return depenses
