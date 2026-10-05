@@ -131,42 +131,6 @@ def recuperer_recettes(entreprise_id):
     return recettes
 
 
-def obtenir_entreprise_par_defaut():
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT id
-        FROM entreprises
-        ORDER BY id
-        LIMIT 1
-    """)
-
-    entreprise = cursor.fetchone()
-
-    if entreprise:
-        connection.close()
-        return entreprise[0]
-
-    cursor.execute("""
-        INSERT INTO entreprises (
-            nom,
-            secteur,
-            devise
-        )
-        VALUES (?, ?, ?)
-    """, (
-        "Mon entreprise",
-        "À définir",
-        "FCFA"
-    ))
-
-    entreprise_id = cursor.lastrowid
-
-    connection.commit()
-    connection.close()
-
-    return entreprise_id
 def ajouter_depense(
     entreprise_id,
     date,
@@ -227,3 +191,41 @@ def recuperer_depenses(entreprise_id):
     connection.close()
 
     return depenses
+
+
+def obtenir_entreprise_par_defaut():
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT id
+        FROM entreprises
+        ORDER BY id
+        LIMIT 1
+    """)
+
+    entreprise = cursor.fetchone()
+
+    if entreprise:
+        connection.close()
+        return entreprise[0]
+
+    cursor.execute("""
+        INSERT INTO entreprises (
+            nom,
+            secteur,
+            devise
+        )
+        VALUES (?, ?, ?)
+    """, (
+        "Mon entreprise",
+        "À définir",
+        "FCFA"
+    ))
+
+    entreprise_id = cursor.lastrowid
+
+    connection.commit()
+    connection.close()
+
+    return entreprise_id
