@@ -1,5 +1,12 @@
 import streamlit as st
-from database import initialize_database
+from datetime import date
+
+from database import (
+    initialize_database,
+    obtenir_entreprise_par_defaut,
+    ajouter_recette,
+    recuperer_recettes
+)
 
 # --------------------------------------------------
 # CONFIGURATION
@@ -13,10 +20,12 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# INITIALISATION DE LA BASE DE DONNÉES
+# INITIALISATION
 # --------------------------------------------------
 
 initialize_database()
+
+entreprise_id = obtenir_entreprise_par_defaut()
 
 # --------------------------------------------------
 # STYLE
@@ -206,11 +215,149 @@ if menu == "📊 Tableau de bord":
 
 elif menu == "💰 Recettes":
 
-    st.title("💰 Recettes")
+    st.title("💰 Gestion des recettes")
 
-    st.info(
-        "Le module de gestion des recettes sera développé prochainement."
+    st.write(
+        "Enregistrez les revenus de votre entreprise."
     )
+
+    st.divider()
+
+    # FORMULAIRE
+
+    st.subheader("➕ Ajouter une recette")
+
+    with st.form("form_recette"):
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            date_recette = st.date_input(
+                "Date",
+                value=date.today()
+            )
+
+            montant = st.number_input(
+                "Montant (FCFA)",
+                min_value=0.0,
+                step=100.0,
+                format="%.0f"
+            )
+
+            categorie = st.selectbox(
+                "Catégorie",
+                [
+                    "Vente",
+                    "Prestation de service",
+                    "Subvention",
+                    "Commission",
+                    "Autre"
+                ]
+            )
+
+        with col2:
+
+            source = st.text_input(
+                "Source / Client",
+                placeholder="Exemple : Client ABC"
+            )
+
+            moyen_paiement = st.selectbox(
+                "Moyen de paiement",
+                [
+                    "Espèces",
+                    "Mobile Money",
+                    "Virement bancaire",
+                    "Carte bancaire",
+                    "Autre"
+                ]
+            )
+
+            description = st.text_input(
+                "Description",
+                placeholder="Description de la recette"
+            )
+
+        submitted = st.form_submit_button(
+            "💾 Enregistrer la recette",
+            use_container_width=True
+        )
+
+        if submitted:
+
+            if montant <= 0:
+
+                st.error(
+                    "Le montant doit être supérieur à zéro."
+                )
+
+            else:
+
+                ajouter_recette(
+                    entreprise_id,
+                    str(date_recette),
+                    montant,
+                    categorie,
+                    source,
+                    moyen_paiement,
+                    description
+                )
+
+                st.success(
+                    "Recette enregistrée avec succès."
+                )
+
+    # LISTE DES RECETTES
+
+    st.divider()
+
+    st.subheader("📋 Historique des recettes")
+
+    recettes = recuperer_recettes(entreprise_id)
+
+    if recettes:
+
+        for recette in recettes:
+
+            recette_id = recette[0]
+            date_r = recette[1]
+            montant_r = recette[2]
+            categorie_r = recette[3]
+            source_r = recette[4]
+            paiement_r = recette[5]
+            description_r = recette[6]
+
+            with st.container(border=True):
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    st.write(f"**Date :** {date_r}")
+                    st.write(f"**Catégorie :** {categorie_r}")
+
+                with col2:
+                    st.write(
+                        f"**Montant :** {montant_r:,.0f} FCFA"
+                    )
+                    st.write(
+                        f"**Source :** {source_r or 'Non renseignée'}"
+                    )
+
+                with col3:
+                    st.write(
+                        f"**Paiement :** {paiement_r}"
+                    )
+                    st.write(
+                        f"**Description :** "
+                        f"{description_r or 'Aucune'}"
+                    )
+
+    else:
+
+        st.info(
+            "Aucune recette enregistrée pour le moment."
+        )
 
 
 # --------------------------------------------------
