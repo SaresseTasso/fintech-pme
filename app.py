@@ -323,85 +323,88 @@ if menu == "📊 Tableau de bord":
         )
 
 
-    # --------------------------------------------------------
-    # EVOLUTION MENSUELLE
-    # --------------------------------------------------------
+ # --------------------------------------------------------
+# EVOLUTION MENSUELLE
+# --------------------------------------------------------
 
-    st.markdown(
-        '<div class="section-title">'
-        'Évolution des recettes et dépenses'
-        '</div>',
-        unsafe_allow_html=True
+st.markdown(
+    '<div class="section-title">'
+    'Évolution des recettes et dépenses'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+evolution = defaultdict(
+    lambda: {
+        "Recettes": 0,
+        "Dépenses": 0
+    }
+)
+
+for recette in recettes:
+
+    date_transaction = recette[1]
+    montant = recette[2]
+
+    try:
+        mois = datetime.strptime(
+            date_transaction,
+            "%Y-%m-%d"
+        ).strftime("%Y-%m")
+
+    except ValueError:
+        mois = str(date_transaction)[:7]
+
+    evolution[mois]["Recettes"] += montant
+
+
+for depense in depenses:
+
+    date_transaction = depense[1]
+    montant = depense[2]
+
+    try:
+        mois = datetime.strptime(
+            date_transaction,
+            "%Y-%m-%d"
+        ).strftime("%Y-%m")
+
+    except ValueError:
+        mois = str(date_transaction)[:7]
+
+    evolution[mois]["Dépenses"] += montant
+
+
+if evolution:
+
+    mois_tries = sorted(
+        evolution.keys()
     )
 
-    evolution = defaultdict(
-        lambda: {
-            "Recettes": 0,
-            "Dépenses": 0
-        }
+    graphique = {
+        "Mois": mois_tries,
+        "Recettes": [
+            evolution[mois]["Recettes"]
+            for mois in mois_tries
+        ],
+        "Dépenses": [
+            evolution[mois]["Dépenses"]
+            for mois in mois_tries
+        ]
+    }
+
+    st.line_chart(
+        graphique,
+        x="Mois",
+        y=["Recettes", "Dépenses"]
     )
 
-    for recette in recettes:
+else:
 
-        date_transaction = recette[1]
-        montant = recette[2]
-
-        try:
-            mois = datetime.strptime(
-                date_transaction,
-                "%Y-%m-%d"
-            ).strftime("%Y-%m")
-        except ValueError:
-            mois = str(date_transaction)[:7]
-
-        evolution[mois]["Recettes"] += montant
-
-
-    for depense in depenses:
-
-        date_transaction = depense[1]
-        montant = depense[2]
-
-        try:
-            mois = datetime.strptime(
-                date_transaction,
-                "%Y-%m-%d"
-            ).strftime("%Y-%m")
-        except ValueError:
-            mois = str(date_transaction)[:7]
-
-        evolution[mois]["Dépenses"] += montant
-
-
-    if evolution:
-
-        mois_tries = sorted(
-            evolution.keys()
-        )
-
-        graphique = {
-            "Recettes": [
-                evolution[mois]["Recettes"]
-                for mois in mois_tries
-            ],
-            "Dépenses": [
-                evolution[mois]["Dépenses"]
-                for mois in mois_tries
-            ]
-        }
-
-        st.bar_chart(
-            graphique,
-            x=mois_tries
-        )
-
-    else:
-
-        st.info(
-            "Ajoutez des recettes et des dépenses "
-            "pour afficher l'évolution financière."
-        )
-
+    st.info(
+        "Ajoutez des recettes et des dépenses "
+        "pour afficher l'évolution financière."
+    )
 
     # --------------------------------------------------------
     # DEUX COLONNES
