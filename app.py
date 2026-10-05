@@ -648,11 +648,11 @@ elif menu == "💰 Recettes":
 
             recettes_filtrees.append(recette)
 
-        # --------------------------------------------------------
-    # EXPORT EXCEL
+    # --------------------------------------------------------
+    # EXPORT EXCEL PROFESSIONNEL
     # --------------------------------------------------------
 
-    st.subheader("📥 Exporter")
+    st.subheader("📊 Export Excel")
 
     donnees_excel = []
 
@@ -669,9 +669,7 @@ elif menu == "💰 Recettes":
             }
         )
 
-    df_recettes = pd.DataFrame(
-        donnees_excel
-    )
+    df_recettes = pd.DataFrame(donnees_excel)
 
     sortie_excel = io.BytesIO()
 
@@ -683,14 +681,70 @@ elif menu == "💰 Recettes":
         df_recettes.to_excel(
             writer,
             index=False,
-            sheet_name="Recettes"
+            sheet_name="Recettes",
+            startrow=4
         )
+
+        feuille = writer.sheets["Recettes"]
+
+        # Titre
+        feuille["A1"] = "FINTECH PME"
+        feuille["A2"] = "Rapport des recettes"
+
+        # Informations
+        feuille["A3"] = (
+            f"Nombre de transactions : "
+            f"{len(recettes_filtrees)}"
+        )
+
+        # Total
+        total_export = sum(
+            recette[2]
+            for recette in recettes_filtrees
+        )
+
+        feuille["A4"] = (
+            f"Total des recettes : "
+            f"{total_export:,.0f} FCFA"
+        )
+
+        # Largeur des colonnes
+        largeurs = {
+            "A": 15,
+            "B": 20,
+            "C": 25,
+            "D": 30,
+            "E": 25,
+            "F": 40
+        }
+
+        for colonne, largeur in largeurs.items():
+            feuille.column_dimensions[
+                colonne
+            ].width = largeur
+
+        # Format monétaire
+        for cellule in feuille["B"][5:]:
+            cellule.number_format = '#,##0 "FCFA"'
+
+        # Filtres Excel
+        if len(df_recettes) > 0:
+
+            feuille.auto_filter.ref = (
+                f"A5:F{len(df_recettes) + 5}"
+            )
+
+        # Figer l'en-tête
+        feuille.freeze_panes = "A6"
 
     st.download_button(
         "📊 Télécharger les recettes en Excel",
         data=sortie_excel.getvalue(),
-        file_name="recettes_fintech_pme.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        file_name="rapport_recettes_fintech_pme.xlsx",
+        mime=(
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        ),
         use_container_width=True
     )
 
