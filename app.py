@@ -9,7 +9,9 @@ from database import (
     ajouter_depense,
     recuperer_depenses,
     calculer_total_recettes,
-    calculer_total_depenses
+    calculer_total_depenses,
+    obtenir_solde_initial,
+    modifier_solde_initial
 )
 
 # --------------------------------------------------
@@ -101,15 +103,16 @@ with st.sidebar:
     st.divider()
 
     menu = st.radio(
-        "Navigation",
-        [
-            "📊 Tableau de bord",
-            "💰 Recettes",
-            "💸 Dépenses",
-            "🏦 Trésorerie",
-            "📈 Rapports"
-        ]
-    )
+    "Navigation",
+    [
+        "📊 Tableau de bord",
+        "💰 Recettes",
+        "💸 Dépenses",
+        "🏦 Trésorerie",
+        "📈 Rapports",
+        "⚙️ Paramètres"
+    ]
+)
 
     st.divider()
 
@@ -122,10 +125,18 @@ with st.sidebar:
 
 if menu == "📊 Tableau de bord":
 
-    total_recettes = calculer_total_recettes(entreprise_id)
-    total_depenses = calculer_total_depenses(entreprise_id)
-    resultat = total_recettes - total_depenses
-    solde_actuel = resultat
+    solde_initial = obtenir_solde_initial(entreprise_id)
+
+total_recettes = calculer_total_recettes(entreprise_id)
+total_depenses = calculer_total_depenses(entreprise_id)
+
+resultat = total_recettes - total_depenses
+
+solde_actuel = (
+    solde_initial
+    + total_recettes
+    - total_depenses
+)
 
     st.title("Tableau de bord")
 
@@ -557,6 +568,47 @@ elif menu == "🏦 Trésorerie":
 elif menu == "📈 Rapports":
 
     st.title("📈 Rapports")
+
+# --------------------------------------------------
+# PARAMÈTRES
+# --------------------------------------------------
+
+elif menu == "⚙️ Paramètres":
+
+    st.title("⚙️ Paramètres")
+
+    st.subheader("💰 Solde initial")
+
+    st.write(
+        "Indiquez le montant disponible dans la caisse "
+        "ou les comptes de l'entreprise au début du suivi."
+    )
+
+    solde_initial_actuel = obtenir_solde_initial(
+        entreprise_id
+    )
+
+    nouveau_solde = st.number_input(
+        "Solde initial (FCFA)",
+        min_value=0.0,
+        value=float(solde_initial_actuel),
+        step=1000.0,
+        format="%.0f"
+    )
+
+    if st.button(
+        "💾 Enregistrer le solde initial",
+        use_container_width=True
+    ):
+
+        modifier_solde_initial(
+            entreprise_id,
+            nouveau_solde
+        )
+
+        st.success(
+            "Solde initial enregistré avec succès."
+        )
 
     st.info(
         "Le module de rapports financiers sera développé prochainement."
