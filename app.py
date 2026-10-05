@@ -1202,11 +1202,11 @@ elif menu == "💸 Dépenses":
 
             depenses_filtrees.append(depense)
 
-    # --------------------------------------------------------
-    # EXPORT EXCEL
+      # --------------------------------------------------------
+    # EXPORT EXCEL PROFESSIONNEL
     # --------------------------------------------------------
 
-    st.subheader("📥 Exporter")
+    st.subheader("📊 Export Excel")
 
     donnees_excel = []
 
@@ -1237,14 +1237,72 @@ elif menu == "💸 Dépenses":
         df_depenses.to_excel(
             writer,
             index=False,
-            sheet_name="Dépenses"
+            sheet_name="Dépenses",
+            startrow=4
         )
+
+        feuille = writer.sheets["Dépenses"]
+
+        # Titre
+        feuille["A1"] = "FINTECH PME"
+        feuille["A2"] = "Rapport des dépenses"
+
+        # Informations
+        feuille["A3"] = (
+            f"Nombre de transactions : "
+            f"{len(depenses_filtrees)}"
+        )
+
+        # Total
+        total_export = sum(
+            depense[2]
+            for depense in depenses_filtrees
+        )
+
+        feuille["A4"] = (
+            f"Total des dépenses : "
+            f"{total_export:,.0f} FCFA"
+        )
+
+        # Largeur des colonnes
+        largeurs = {
+            "A": 15,
+            "B": 20,
+            "C": 30,
+            "D": 35,
+            "E": 25,
+            "F": 40
+        }
+
+        for colonne, largeur in largeurs.items():
+
+            feuille.column_dimensions[
+                colonne
+            ].width = largeur
+
+        # Format monétaire
+        for cellule in feuille["B"][5:]:
+
+            cellule.number_format = '#,##0 "FCFA"'
+
+        # Filtres Excel
+        if len(df_depenses) > 0:
+
+            feuille.auto_filter.ref = (
+                f"A5:F{len(df_depenses) + 5}"
+            )
+
+        # Figer l'en-tête
+        feuille.freeze_panes = "A6"
 
     st.download_button(
         "📊 Télécharger les dépenses en Excel",
         data=sortie_excel.getvalue(),
-        file_name="depenses_fintech_pme.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        file_name="rapport_depenses_fintech_pme.xlsx",
+        mime=(
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        ),
         use_container_width=True
     )
 
