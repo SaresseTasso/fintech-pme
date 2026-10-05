@@ -1,5 +1,6 @@
 import streamlit as st
-from datetime import date
+from datetime import date, datetime
+from collections import defaultdict
 
 from database import (
     initialize_database,
@@ -14,9 +15,10 @@ from database import (
     modifier_solde_initial
 )
 
-# --------------------------------------------------
+
+# ============================================================
 # CONFIGURATION
-# --------------------------------------------------
+# ============================================================
 
 st.set_page_config(
     page_title="FinTech PME",
@@ -25,76 +27,85 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --------------------------------------------------
-# INITIALISATION
-# --------------------------------------------------
-
 initialize_database()
-
 entreprise_id = obtenir_entreprise_par_defaut()
 
-# --------------------------------------------------
+
+# ============================================================
 # STYLE
-# --------------------------------------------------
+# ============================================================
 
 st.markdown(
     """
     <style>
-        .main {
-            padding-top: 1rem;
-        }
 
-        .block-container {
-            padding-top: 2rem;
-            padding-bottom: 2rem;
-        }
+    .main {
+        padding-top: 1rem;
+    }
 
-        .metric-card {
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid #e6e6e6;
-            background-color: white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
 
-        .metric-title {
-            font-size: 14px;
-            color: #666666;
-            margin-bottom: 8px;
-        }
+    .metric-card {
+        padding: 18px;
+        border-radius: 12px;
+        border: 1px solid #e6e6e6;
+        background-color: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
 
-        .metric-value {
-            font-size: 28px;
-            font-weight: 700;
-        }
+    .metric-title {
+        font-size: 13px;
+        color: #666666;
+        margin-bottom: 6px;
+    }
 
-        .section-title {
-            font-size: 20px;
-            font-weight: 700;
-            margin-top: 25px;
-            margin-bottom: 15px;
-        }
+    .metric-value {
+        font-size: 25px;
+        font-weight: 700;
+    }
 
-        .welcome {
-            padding: 25px;
-            border-radius: 15px;
-            background-color: #f5f7fa;
-            margin-bottom: 25px;
-        }
+    .positive {
+        color: #16803c;
+    }
+
+    .negative {
+        color: #c62828;
+    }
+
+    .section-title {
+        font-size: 20px;
+        font-weight: 700;
+        margin-top: 25px;
+        margin-bottom: 15px;
+    }
+
+    .welcome {
+        padding: 25px;
+        border-radius: 15px;
+        background-color: #f5f7fa;
+        margin-bottom: 25px;
+    }
+
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# --------------------------------------------------
+
+# ============================================================
 # SIDEBAR
-# --------------------------------------------------
+# ============================================================
 
 with st.sidebar:
 
     st.title("💼 FinTech PME")
 
-    st.caption("Gestion financière simplifiée")
+    st.caption(
+        "Gestion financière simplifiée"
+    )
 
     st.divider()
 
@@ -112,43 +123,87 @@ with st.sidebar:
 
     st.divider()
 
-    st.caption("Version 1.0 — Prototype")
+    st.caption(
+        "Version 1.0 — Prototype"
+    )
 
 
-# --------------------------------------------------
+# ============================================================
+# DONNÉES FINANCIÈRES
+# ============================================================
+
+solde_initial = obtenir_solde_initial(
+    entreprise_id
+)
+
+total_recettes = calculer_total_recettes(
+    entreprise_id
+)
+
+total_depenses = calculer_total_depenses(
+    entreprise_id
+)
+
+resultat = (
+    total_recettes
+    - total_depenses
+)
+
+solde_actuel = (
+    solde_initial
+    + total_recettes
+    - total_depenses
+)
+
+recettes = recuperer_recettes(
+    entreprise_id
+)
+
+depenses = recuperer_depenses(
+    entreprise_id
+)
+
+nombre_recettes = len(recettes)
+nombre_depenses = len(depenses)
+
+nombre_transactions = (
+    nombre_recettes
+    + nombre_depenses
+)
+
+if total_recettes > 0:
+    marge_financiere = (
+        resultat / total_recettes
+    ) * 100
+else:
+    marge_financiere = 0
+
+
+# ============================================================
 # TABLEAU DE BORD
-# --------------------------------------------------
+# ============================================================
 
 if menu == "📊 Tableau de bord":
 
-    solde_initial = obtenir_solde_initial(entreprise_id)
-
-    total_recettes = calculer_total_recettes(entreprise_id)
-
-    total_depenses = calculer_total_depenses(entreprise_id)
-
-    resultat = total_recettes - total_depenses
-
-    solde_actuel = (
-        solde_initial
-        + total_recettes
-        - total_depenses
-    )
-
-    st.title("Tableau de bord")
+    st.title("📊 Tableau de bord")
 
     st.markdown(
         """
         <div class="welcome">
             <h2>Bienvenue sur FinTech PME</h2>
             <p>
-                Pilotez simplement les finances de votre entreprise
+                Pilotez les finances de votre entreprise
                 depuis un seul espace.
             </p>
         </div>
         """,
         unsafe_allow_html=True
     )
+
+
+    # --------------------------------------------------------
+    # INDICATEURS PRINCIPAUX
+    # --------------------------------------------------------
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -157,7 +212,10 @@ if menu == "📊 Tableau de bord":
         st.markdown(
             f"""
             <div class="metric-card">
-                <div class="metric-title">Solde actuel</div>
+                <div class="metric-title">
+                    Solde actuel
+                </div>
+
                 <div class="metric-value">
                     {solde_actuel:,.0f} FCFA
                 </div>
@@ -171,8 +229,11 @@ if menu == "📊 Tableau de bord":
         st.markdown(
             f"""
             <div class="metric-card">
-                <div class="metric-title">Recettes</div>
-                <div class="metric-value">
+                <div class="metric-title">
+                    Total des recettes
+                </div>
+
+                <div class="metric-value positive">
                     {total_recettes:,.0f} FCFA
                 </div>
             </div>
@@ -185,8 +246,11 @@ if menu == "📊 Tableau de bord":
         st.markdown(
             f"""
             <div class="metric-card">
-                <div class="metric-title">Dépenses</div>
-                <div class="metric-value">
+                <div class="metric-title">
+                    Total des dépenses
+                </div>
+
+                <div class="metric-value negative">
                     {total_depenses:,.0f} FCFA
                 </div>
             </div>
@@ -196,11 +260,20 @@ if menu == "📊 Tableau de bord":
 
     with col4:
 
+        resultat_class = (
+            "positive"
+            if resultat >= 0
+            else "negative"
+        )
+
         st.markdown(
             f"""
             <div class="metric-card">
-                <div class="metric-title">Résultat</div>
-                <div class="metric-value">
+                <div class="metric-title">
+                    Résultat
+                </div>
+
+                <div class="metric-value {resultat_class}">
                     {resultat:,.0f} FCFA
                 </div>
             </div>
@@ -208,28 +281,271 @@ if menu == "📊 Tableau de bord":
             unsafe_allow_html=True
         )
 
+
+    # --------------------------------------------------------
+    # INDICATEURS SECONDAIRES
+    # --------------------------------------------------------
+
     st.markdown(
-        '<div class="section-title">Évolution financière</div>',
+        '<div class="section-title">'
+        'Indicateurs financiers'
+        '</div>',
         unsafe_allow_html=True
     )
 
-    st.info(
-        "Le graphique dynamique sera ajouté dans une prochaine étape."
-    )
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+
+        st.metric(
+            "Nombre de transactions",
+            nombre_transactions
+        )
+
+    with col2:
+
+        st.metric(
+            "Marge financière",
+            f"{marge_financiere:.1f}%"
+        )
+
+    with col3:
+
+        moyenne_recette = (
+            total_recettes / nombre_recettes
+            if nombre_recettes > 0
+            else 0
+        )
+
+        st.metric(
+            "Recette moyenne",
+            f"{moyenne_recette:,.0f} FCFA"
+        )
+
+
+    # --------------------------------------------------------
+    # EVOLUTION MENSUELLE
+    # --------------------------------------------------------
 
     st.markdown(
-        '<div class="section-title">Dernières transactions</div>',
+        '<div class="section-title">'
+        'Évolution des recettes et dépenses'
+        '</div>',
         unsafe_allow_html=True
     )
 
-    st.info(
-        "La liste des dernières transactions sera ajoutée prochainement."
+    evolution = defaultdict(
+        lambda: {
+            "Recettes": 0,
+            "Dépenses": 0
+        }
     )
 
+    for recette in recettes:
 
-# --------------------------------------------------
+        date_transaction = recette[1]
+        montant = recette[2]
+
+        try:
+            mois = datetime.strptime(
+                date_transaction,
+                "%Y-%m-%d"
+            ).strftime("%Y-%m")
+        except ValueError:
+            mois = str(date_transaction)[:7]
+
+        evolution[mois]["Recettes"] += montant
+
+
+    for depense in depenses:
+
+        date_transaction = depense[1]
+        montant = depense[2]
+
+        try:
+            mois = datetime.strptime(
+                date_transaction,
+                "%Y-%m-%d"
+            ).strftime("%Y-%m")
+        except ValueError:
+            mois = str(date_transaction)[:7]
+
+        evolution[mois]["Dépenses"] += montant
+
+
+    if evolution:
+
+        mois_tries = sorted(
+            evolution.keys()
+        )
+
+        graphique = {
+            "Recettes": [
+                evolution[mois]["Recettes"]
+                for mois in mois_tries
+            ],
+            "Dépenses": [
+                evolution[mois]["Dépenses"]
+                for mois in mois_tries
+            ]
+        }
+
+        st.bar_chart(
+            graphique,
+            x=mois_tries
+        )
+
+    else:
+
+        st.info(
+            "Ajoutez des recettes et des dépenses "
+            "pour afficher l'évolution financière."
+        )
+
+
+    # --------------------------------------------------------
+    # DEUX COLONNES
+    # --------------------------------------------------------
+
+    col1, col2 = st.columns(2)
+
+
+    # --------------------------------------------------------
+    # RÉPARTITION DES DÉPENSES
+    # --------------------------------------------------------
+
+    with col1:
+
+        st.markdown(
+            '<div class="section-title">'
+            'Répartition des dépenses'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+        categories_depenses = defaultdict(float)
+
+        for depense in depenses:
+
+            categorie = depense[3]
+            montant = depense[2]
+
+            categories_depenses[
+                categorie
+            ] += montant
+
+
+        if categories_depenses:
+
+            categories_tries = sorted(
+                categories_depenses.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )
+
+            graphique_depenses = {
+                "Montant": [
+                    montant
+                    for categorie, montant
+                    in categories_tries
+                ]
+            }
+
+            categories = [
+                categorie
+                for categorie, montant
+                in categories_tries
+            ]
+
+            st.bar_chart(
+                graphique_depenses,
+                x=categories
+            )
+
+        else:
+
+            st.info(
+                "Aucune dépense enregistrée."
+            )
+
+
+    # --------------------------------------------------------
+    # DERNIÈRES TRANSACTIONS
+    # --------------------------------------------------------
+
+    with col2:
+
+        st.markdown(
+            '<div class="section-title">'
+            'Dernières transactions'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+        transactions = []
+
+
+        for recette in recettes:
+
+            transactions.append(
+                {
+                    "date": recette[1],
+                    "type": "Recette",
+                    "categorie": recette[3],
+                    "montant": recette[2]
+                }
+            )
+
+
+        for depense in depenses:
+
+            transactions.append(
+                {
+                    "date": depense[1],
+                    "type": "Dépense",
+                    "categorie": depense[3],
+                    "montant": depense[2]
+                }
+            )
+
+
+        transactions.sort(
+            key=lambda x: x["date"],
+            reverse=True
+        )
+
+
+        if transactions:
+
+            for transaction in transactions[:5]:
+
+                if transaction["type"] == "Recette":
+
+                    signe = "+"
+
+                else:
+
+                    signe = "-"
+
+
+                st.write(
+                    f"**{transaction['date']}** — "
+                    f"{transaction['type']} — "
+                    f"{transaction['categorie']} : "
+                    f"{signe}"
+                    f"{transaction['montant']:,.0f} FCFA"
+                )
+
+        else:
+
+            st.info(
+                "Aucune transaction enregistrée."
+            )
+
+
+# ============================================================
 # RECETTES
-# --------------------------------------------------
+# ============================================================
 
 elif menu == "💰 Recettes":
 
@@ -295,10 +611,12 @@ elif menu == "💰 Recettes":
                 placeholder="Description de la recette"
             )
 
+
         submitted = st.form_submit_button(
             "💾 Enregistrer la recette",
             use_container_width=True
         )
+
 
         if submitted:
 
@@ -324,22 +642,22 @@ elif menu == "💰 Recettes":
                     "Recette enregistrée avec succès."
                 )
 
+                st.rerun()
+
+
     st.divider()
 
-    st.subheader("📋 Historique des recettes")
+    st.subheader(
+        "📋 Historique des recettes"
+    )
 
-    recettes = recuperer_recettes(entreprise_id)
+    recettes = recuperer_recettes(
+        entreprise_id
+    )
 
     if recettes:
 
         for recette in recettes:
-
-            date_r = recette[1]
-            montant_r = recette[2]
-            categorie_r = recette[3]
-            source_r = recette[4]
-            paiement_r = recette[5]
-            description_r = recette[6]
 
             with st.container(border=True):
 
@@ -347,33 +665,35 @@ elif menu == "💰 Recettes":
 
                 with col1:
 
-                    st.write(f"**Date :** {date_r}")
+                    st.write(
+                        f"**Date :** {recette[1]}"
+                    )
 
                     st.write(
-                        f"**Catégorie :** {categorie_r}"
+                        f"**Catégorie :** {recette[3]}"
                     )
 
                 with col2:
 
                     st.write(
                         f"**Montant :** "
-                        f"{montant_r:,.0f} FCFA"
+                        f"{recette[2]:,.0f} FCFA"
                     )
 
                     st.write(
                         f"**Source :** "
-                        f"{source_r or 'Non renseignée'}"
+                        f"{recette[4] or 'Non renseignée'}"
                     )
 
                 with col3:
 
                     st.write(
-                        f"**Paiement :** {paiement_r}"
+                        f"**Paiement :** {recette[5]}"
                     )
 
                     st.write(
                         f"**Description :** "
-                        f"{description_r or 'Aucune'}"
+                        f"{recette[6] or 'Aucune'}"
                     )
 
     else:
@@ -383,16 +703,17 @@ elif menu == "💰 Recettes":
         )
 
 
-# --------------------------------------------------
+# ============================================================
 # DEPENSES
-# --------------------------------------------------
+# ============================================================
 
 elif menu == "💸 Dépenses":
 
     st.title("💸 Gestion des dépenses")
 
     st.write(
-        "Enregistrez et suivez les dépenses de votre entreprise."
+        "Enregistrez et suivez les dépenses "
+        "de votre entreprise."
     )
 
     st.divider()
@@ -456,10 +777,12 @@ elif menu == "💸 Dépenses":
                 placeholder="Description de la dépense"
             )
 
+
         submitted = st.form_submit_button(
             "💾 Enregistrer la dépense",
             use_container_width=True
         )
+
 
         if submitted:
 
@@ -485,22 +808,22 @@ elif menu == "💸 Dépenses":
                     "Dépense enregistrée avec succès."
                 )
 
+                st.rerun()
+
+
     st.divider()
 
-    st.subheader("📋 Historique des dépenses")
+    st.subheader(
+        "📋 Historique des dépenses"
+    )
 
-    depenses = recuperer_depenses(entreprise_id)
+    depenses = recuperer_depenses(
+        entreprise_id
+    )
 
     if depenses:
 
         for depense in depenses:
-
-            date_d = depense[1]
-            montant_d = depense[2]
-            categorie_d = depense[3]
-            beneficiaire_d = depense[4]
-            paiement_d = depense[5]
-            description_d = depense[6]
 
             with st.container(border=True):
 
@@ -508,33 +831,35 @@ elif menu == "💸 Dépenses":
 
                 with col1:
 
-                    st.write(f"**Date :** {date_d}")
+                    st.write(
+                        f"**Date :** {depense[1]}"
+                    )
 
                     st.write(
-                        f"**Catégorie :** {categorie_d}"
+                        f"**Catégorie :** {depense[3]}"
                     )
 
                 with col2:
 
                     st.write(
                         f"**Montant :** "
-                        f"{montant_d:,.0f} FCFA"
+                        f"{depense[2]:,.0f} FCFA"
                     )
 
                     st.write(
                         f"**Bénéficiaire :** "
-                        f"{beneficiaire_d or 'Non renseigné'}"
+                        f"{depense[4] or 'Non renseigné'}"
                     )
 
                 with col3:
 
                     st.write(
-                        f"**Paiement :** {paiement_d}"
+                        f"**Paiement :** {depense[5]}"
                     )
 
                     st.write(
                         f"**Description :** "
-                        f"{description_d or 'Aucune'}"
+                        f"{depense[6] or 'Aucune'}"
                     )
 
     else:
@@ -544,43 +869,36 @@ elif menu == "💸 Dépenses":
         )
 
 
-# --------------------------------------------------
+# ============================================================
 # TRESORERIE
-# --------------------------------------------------
+# ============================================================
 
 elif menu == "🏦 Trésorerie":
 
     st.title("🏦 Trésorerie")
 
-    solde_initial = obtenir_solde_initial(entreprise_id)
-
-    total_recettes = calculer_total_recettes(entreprise_id)
-
-    total_depenses = calculer_total_depenses(entreprise_id)
-
-    solde_actuel = (
-        solde_initial
-        + total_recettes
-        - total_depenses
+    st.subheader(
+        "Situation de trésorerie"
     )
-
-    st.subheader("Situation de trésorerie")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
+
         st.metric(
             "Solde initial",
             f"{solde_initial:,.0f} FCFA"
         )
 
     with col2:
+
         st.metric(
             "Entrées",
             f"{total_recettes:,.0f} FCFA"
         )
 
     with col3:
+
         st.metric(
             "Sorties",
             f"{total_depenses:,.0f} FCFA"
@@ -594,45 +912,45 @@ elif menu == "🏦 Trésorerie":
     )
 
 
-# --------------------------------------------------
+# ============================================================
 # RAPPORTS
-# --------------------------------------------------
+# ============================================================
 
 elif menu == "📈 Rapports":
 
     st.title("📈 Rapports")
 
     st.info(
-        "Le module de rapports financiers sera développé prochainement."
+        "Le module de rapports financiers sera développé "
+        "dans une prochaine étape."
     )
 
 
-# --------------------------------------------------
+# ============================================================
 # PARAMETRES
-# --------------------------------------------------
+# ============================================================
 
 elif menu == "⚙️ Paramètres":
 
     st.title("⚙️ Paramètres")
 
-    st.subheader("💰 Solde initial")
+    st.subheader(
+        "💰 Solde initial"
+    )
 
     st.write(
         "Indiquez le montant disponible dans la caisse "
         "ou les comptes de l'entreprise au début du suivi."
     )
 
-    solde_initial_actuel = obtenir_solde_initial(
-        entreprise_id
-    )
-
     nouveau_solde = st.number_input(
         "Solde initial (FCFA)",
         min_value=0.0,
-        value=float(solde_initial_actuel),
+        value=float(solde_initial),
         step=1000.0,
         format="%.0f"
     )
+
 
     if st.button(
         "💾 Enregistrer le solde initial",
@@ -647,3 +965,5 @@ elif menu == "⚙️ Paramètres":
         st.success(
             "Solde initial enregistré avec succès."
         )
+
+        st.rerun()
