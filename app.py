@@ -5,7 +5,9 @@ from database import (
     initialize_database,
     obtenir_entreprise_par_defaut,
     ajouter_recette,
-    recuperer_recettes
+    recuperer_recettes,
+    ajouter_depense,
+    recuperer_depenses
 )
 
 # --------------------------------------------------
@@ -366,12 +368,155 @@ elif menu == "💰 Recettes":
 
 elif menu == "💸 Dépenses":
 
-    st.title("💸 Dépenses")
+    st.title("💸 Gestion des dépenses")
 
-    st.info(
-        "Le module de gestion des dépenses sera développé prochainement."
+    st.write(
+        "Enregistrez et suivez les dépenses de votre entreprise."
     )
 
+    st.divider()
+
+    # FORMULAIRE
+
+    st.subheader("➕ Ajouter une dépense")
+
+    with st.form("form_depense"):
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            date_depense = st.date_input(
+                "Date",
+                value=date.today()
+            )
+
+            montant = st.number_input(
+                "Montant (FCFA)",
+                min_value=0.0,
+                step=100.0,
+                format="%.0f"
+            )
+
+            categorie = st.selectbox(
+                "Catégorie",
+                [
+                    "Achat de marchandises",
+                    "Transport",
+                    "Salaires",
+                    "Loyer",
+                    "Électricité",
+                    "Eau",
+                    "Téléphone / Internet",
+                    "Fournitures",
+                    "Marketing",
+                    "Autre"
+                ]
+            )
+
+        with col2:
+
+            beneficiaire = st.text_input(
+                "Bénéficiaire / Fournisseur",
+                placeholder="Exemple : Fournisseur ABC"
+            )
+
+            moyen_paiement = st.selectbox(
+                "Moyen de paiement",
+                [
+                    "Espèces",
+                    "Mobile Money",
+                    "Virement bancaire",
+                    "Carte bancaire",
+                    "Autre"
+                ]
+            )
+
+            description = st.text_input(
+                "Description",
+                placeholder="Description de la dépense"
+            )
+
+        submitted = st.form_submit_button(
+            "💾 Enregistrer la dépense",
+            use_container_width=True
+        )
+
+        if submitted:
+
+            if montant <= 0:
+
+                st.error(
+                    "Le montant doit être supérieur à zéro."
+                )
+
+            else:
+
+                ajouter_depense(
+                    entreprise_id,
+                    str(date_depense),
+                    montant,
+                    categorie,
+                    beneficiaire,
+                    moyen_paiement,
+                    description
+                )
+
+                st.success(
+                    "Dépense enregistrée avec succès."
+                )
+
+    # HISTORIQUE
+
+    st.divider()
+
+    st.subheader("📋 Historique des dépenses")
+
+    depenses = recuperer_depenses(entreprise_id)
+
+    if depenses:
+
+        for depense in depenses:
+
+            depense_id = depense[0]
+            date_d = depense[1]
+            montant_d = depense[2]
+            categorie_d = depense[3]
+            beneficiaire_d = depense[4]
+            paiement_d = depense[5]
+            description_d = depense[6]
+
+            with st.container(border=True):
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    st.write(f"**Date :** {date_d}")
+                    st.write(f"**Catégorie :** {categorie_d}")
+
+                with col2:
+                    st.write(
+                        f"**Montant :** {montant_d:,.0f} FCFA"
+                    )
+                    st.write(
+                        f"**Bénéficiaire :** "
+                        f"{beneficiaire_d or 'Non renseigné'}"
+                    )
+
+                with col3:
+                    st.write(
+                        f"**Paiement :** {paiement_d}"
+                    )
+                    st.write(
+                        f"**Description :** "
+                        f"{description_d or 'Aucune'}"
+                    )
+
+    else:
+
+        st.info(
+            "Aucune dépense enregistrée pour le moment."
+        )
 
 # --------------------------------------------------
 # TRÉSORERIE
