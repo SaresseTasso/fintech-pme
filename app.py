@@ -1149,46 +1149,48 @@ elif menu == "💸 Dépenses":
             depenses_filtrees.append(depense)
 
     # --------------------------------------------------------
-    # EXPORT
+    # EXPORT EXCEL
     # --------------------------------------------------------
 
     st.subheader("📥 Exporter")
 
-    sortie = io.StringIO()
-
-    writer = csv.writer(
-        sortie
-    )
-
-    writer.writerow(
-        [
-            "Date",
-            "Montant",
-            "Catégorie",
-            "Bénéficiaire / Fournisseur",
-            "Moyen de paiement",
-            "Description"
-        ]
-    )
+    donnees_excel = []
 
     for depense in depenses_filtrees:
 
-        writer.writerow(
-            [
-                depense[1],
-                depense[2],
-                depense[3],
-                depense[4] or "",
-                depense[5] or "",
-                depense[6] or ""
-            ]
+        donnees_excel.append(
+            {
+                "Date": depense[1],
+                "Montant (FCFA)": depense[2],
+                "Catégorie": depense[3],
+                "Bénéficiaire / Fournisseur": depense[4] or "",
+                "Moyen de paiement": depense[5] or "",
+                "Description": depense[6] or ""
+            }
+        )
+
+    df_depenses = pd.DataFrame(
+        donnees_excel
+    )
+
+    sortie_excel = io.BytesIO()
+
+    with pd.ExcelWriter(
+        sortie_excel,
+        engine="openpyxl"
+    ) as writer:
+
+        df_depenses.to_excel(
+            writer,
+            index=False,
+            sheet_name="Dépenses"
         )
 
     st.download_button(
-        "📥 Télécharger les dépenses en CSV",
-        data=sortie.getvalue(),
-        file_name="depenses_fintech_pme.csv",
-        mime="text/csv",
+        "📊 Télécharger les dépenses en Excel",
+        data=sortie_excel.getvalue(),
+        file_name="depenses_fintech_pme.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
 
