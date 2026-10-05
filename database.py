@@ -226,6 +226,38 @@ def obtenir_entreprise_par_defaut():
     entreprise_id = cursor.lastrowid
 
     connection.commit()
+def calculer_total_recettes(entreprise_id):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT COALESCE(SUM(montant), 0)
+        FROM recettes
+        WHERE entreprise_id = ?
+    """, (entreprise_id,))
+
+    total = cursor.fetchone()[0]
+
+    connection.close()
+
+    return total
+
+
+def calculer_total_depenses(entreprise_id):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT COALESCE(SUM(montant), 0)
+        FROM depenses
+        WHERE entreprise_id = ?
+    """, (entreprise_id,))
+
+    total = cursor.fetchone()[0]
+
+    connection.close()
+
+    return total
     connection.close()
 
     return entreprise_id
