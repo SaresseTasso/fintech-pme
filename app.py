@@ -236,21 +236,6 @@ with col4:
         f"{resultat:,.0f} FCFA"
     )
 
-        st.markdown(
-            f"""
-            <div class="metric-card">
-                <div class="metric-title">
-                    Résultat
-                </div>
-
-                <div class="metric-value {resultat_class}">
-                    {resultat:,.0f} FCFA
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
 
     # --------------------------------------------------------
     # INDICATEURS SECONDAIRES
