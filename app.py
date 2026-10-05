@@ -1,12 +1,15 @@
 import streamlit as st
-from datetime import date, datetime
-from collections import defaultdict
-import csv
-import io
 import pandas as pd
+import io
+from datetime import date
 
 from database import (
     initialize_database,
+    creer_entreprise,
+    email_existe,
+    creer_administrateur,
+    authentifier_utilisateur,
+    obtenir_utilisateur,
     obtenir_entreprise_par_defaut,
     ajouter_recette,
     recuperer_recettes,
@@ -32,92 +35,337 @@ from database import (
 st.set_page_config(
     page_title="FinTech PME",
     page_icon="💼",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
 initialize_database()
 
-entreprise_id = obtenir_entreprise_par_defaut()
+
+# ============================================================
+# SESSION
+# ============================================================
+
+if "connecte" not in st.session_state:
+    st.session_state.connecte = False
+
+if "utilisateur_id" not in st.session_state:
+    st.session_state.utilisateur_id = None
+
+if "entreprise_id" not in st.session_state:
+    st.session_state.entreprise_id = None
+
+if "nom_utilisateur" not in st.session_state:
+    st.session_state.nom_utilisateur = ""
+
+if "email_utilisateur" not in st.session_state:
+    st.session_state.email_utilisateur = ""
 
 
 # ============================================================
-# STYLE
+# FONCTIONS UTILITAIRES
 # ============================================================
 
-st.markdown(
-    """
-    <style>
+def format_fcfa(montant):
+    return f"{montant:,.0f} FCFA".replace(",", " ")
 
-    .main {
-        padding-top: 1rem;
-    }
 
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
+def nettoyer_texte(valeur):
+    if valeur is None:
+        return ""
+    return str(valeur)
 
-    .section-title {
-        font-size: 20px;
-        font-weight: 700;
-        margin-top: 25px;
-        margin-bottom: 15px;
-    }
 
-    .welcome {
-        padding: 25px;
-        border-radius: 15px;
-        background-color: #f5f7fa;
-        margin-bottom: 25px;
-    }
+# ============================================================
+# PAGE D'AUTHENTIFICATION
+# ============================================================
 
-    </style>
-    """,
-    unsafe_allow_html=True
+def page_authentification():
+
+    st.title("💼 FinTech PME")
+
+    st.markdown(
+        "### Plateforme de gestion financière pour les petites et moyennes entreprises"
+    )
+
+    st.divider()
+
+    onglet_connexion, onglet_inscription = st.tabs(
+        ["🔐 Connexion administrateur", "📝 Créer un compte"]
+    )
+
+    # --------------------------------------------------------
+    # CONNEXION
+    # --------------------------------------------------------
+
+    with onglet_connexion:
+
+        st.subheader("Connexion administrateur")
+
+        with st.form("form_connexion"):
+
+            email = st.text_input(
+                "Adresse e-mail",
+                placeholder="admin@entreprise.com"
+            )
+
+            mot_de_passe = st.text_input(
+                "Mot de passe",
+                type="password"
+            )
+
+            connexion = st.form_submit_button(
+                "Se connecter",
+                use_container_width=True
+            )
+
+        if connexion:
+
+            if not email or not mot_de_passe:
+                st.error(
+                    "Veuillez renseigner votre adresse e-mail et votre mot de passe."
+                )
+
+            else:
+
+                utilisateur = authentifier_utilisateur(
+                    email,
+                    mot_de_passe
+                )
+
+                if utilisateur:
+
+                    st.session_state.connecte = True
+                    st.session_state.utilisateur_id = utilisateur[0]
+                    st.session_state.nom_utilisateur = utilisateur[1]
+                    st.session_state.email_utilisateur = utilisateur[2]
+                    st.session_state.entreprise_id = utilisateur[3]
+
+                    st.success("Connexion réussie.")
+
+                    st.rerun()
+
+                else:
+
+                    st.error(
+                        "Adresse e-mail ou mot de passe incorrect."
+                    )
+
+    # --------------------------------------------------------
+    # INSCRIPTION
+    # --------------------------------------------------------
+
+    with onglet_inscription:
+
+        st.subheader("Créer un compte administrateur")
+
+        st.info(
+            "L'inscription crée automatiquement votre entreprise "
+            "et votre compte administrateur."
+        )
+
+        with st.form("form_inscription"):
+
+            st.markdown("#### Informations de l'administrateur")
+
+            nom_admin = st.text_input(
+                "Nom complet"
+            )
+
+            email_admin = st.text_input(
+                "Adresse e-mail"
+            )
+
+            mot_de_passe_admin = st.text_input(
+                "Mot de passe",
+                type="password"
+            )
+
+            confirmation_mot_de_passe = st.text_input(
+                "Confirmer le mot de passe",
+                type="password"
+            )
+
+            st.markdown("#### Informations de l'entreprise")
+
+            nom_entreprise = st.text_input(
+                "Nom de l'entreprise"
+            )
+
+            secteur = st.text_input(
+                "Secteur d'activité",
+                placeholder="Commerce, restauration, services..."
+            )
+
+            adresse = st.text_input(
+                "Adresse"
+            )
+
+            telephone = st.text_input(
+                "Téléphone"
+            )
+
+            email_entreprise = st.text_input(
+                "E-mail de l'entreprise"
+            )
+
+            inscription = st.form_submit_button(
+                "Créer mon compte",
+                use_container_width=True
+            )
+
+        if inscription:
+
+            if not nom_admin:
+                st.error("Veuillez renseigner votre nom.")
+
+            elif not email_admin:
+                st.error("Veuillez renseigner votre adresse e-mail.")
+
+            elif not mot_de_passe_admin:
+                st.error("Veuillez créer un mot de passe.")
+
+            elif len(mot_de_passe_admin) < 6:
+                st.error(
+                    "Le mot de passe doit contenir au moins 6 caractères."
+                )
+
+            elif mot_de_passe_admin != confirmation_mot_de_passe:
+                st.error(
+                    "Les deux mots de passe ne correspondent pas."
+                )
+
+            elif not nom_entreprise:
+                st.error(
+                    "Veuillez renseigner le nom de l'entreprise."
+                )
+
+            elif email_existe(email_admin):
+
+                st.error(
+                    "Cette adresse e-mail possède déjà un compte."
+                )
+
+            else:
+
+                try:
+
+                    entreprise_id = creer_entreprise(
+                        nom_entreprise,
+                        secteur,
+                        adresse,
+                        telephone,
+                        email_entreprise
+                    )
+
+                    utilisateur_id = creer_administrateur(
+                        nom_admin,
+                        email_admin,
+                        mot_de_passe_admin,
+                        entreprise_id
+                    )
+
+                    st.success(
+                        "Compte administrateur créé avec succès."
+                    )
+
+                    st.info(
+                        "Vous pouvez maintenant vous connecter "
+                        "avec votre adresse e-mail et votre mot de passe."
+                    )
+
+                except Exception as erreur:
+
+                    st.error(
+                        f"Une erreur est survenue : {erreur}"
+                    )
+
+
+# ============================================================
+# SI L'UTILISATEUR N'EST PAS CONNECTÉ
+# ============================================================
+
+if not st.session_state.connecte:
+
+    page_authentification()
+
+    st.stop()
+
+
+# ============================================================
+# VÉRIFICATION DE LA SESSION
+# ============================================================
+
+utilisateur_actuel = obtenir_utilisateur(
+    st.session_state.utilisateur_id
 )
+
+if utilisateur_actuel is None:
+
+    st.session_state.connecte = False
+    st.session_state.utilisateur_id = None
+    st.session_state.entreprise_id = None
+
+    st.rerun()
+
+if utilisateur_actuel[4] != "admin":
+
+    st.error(
+        "Accès refusé. Seuls les administrateurs peuvent utiliser la plateforme."
+    )
+
+    st.stop()
+
+
+entreprise_id = st.session_state.entreprise_id
 
 
 # ============================================================
 # SIDEBAR
 # ============================================================
 
-with st.sidebar:
+st.sidebar.title("💼 FinTech PME")
 
-    st.title("💼 FinTech PME")
+st.sidebar.write(
+    f"**Administrateur :** {st.session_state.nom_utilisateur}"
+)
 
-    st.caption(
-        "Gestion financière simplifiée"
-    )
+st.sidebar.write(
+    f"**E-mail :** {st.session_state.email_utilisateur}"
+)
 
-    st.divider()
+st.sidebar.divider()
 
-    menu = st.radio(
-        "Navigation",
-        [
-            "📊 Tableau de bord",
-            "💰 Recettes",
-            "💸 Dépenses",
-            "🏦 Trésorerie",
-            "📈 Rapports",
-            "⚙️ Paramètres"
-        ]
-    )
+menu = st.sidebar.radio(
+    "Navigation",
+    [
+        "📊 Tableau de bord",
+        "💰 Recettes",
+        "💸 Dépenses",
+        "🏦 Trésorerie",
+        "📈 Rapports",
+        "⚙️ Paramètres"
+    ]
+)
 
-    st.divider()
+st.sidebar.divider()
 
-    st.caption(
-        "Version 1.1 — Prototype"
-    )
+if st.sidebar.button(
+    "🚪 Se déconnecter",
+    use_container_width=True
+):
+
+    st.session_state.connecte = False
+    st.session_state.utilisateur_id = None
+    st.session_state.entreprise_id = None
+    st.session_state.nom_utilisateur = ""
+    st.session_state.email_utilisateur = ""
+
+    st.rerun()
 
 
 # ============================================================
 # DONNÉES FINANCIÈRES
 # ============================================================
-
-solde_initial = obtenir_solde_initial(
-    entreprise_id
-)
 
 total_recettes = calculer_total_recettes(
     entreprise_id
@@ -127,42 +375,17 @@ total_depenses = calculer_total_depenses(
     entreprise_id
 )
 
-resultat = (
-    total_recettes
-    - total_depenses
+solde_initial = obtenir_solde_initial(
+    entreprise_id
 )
+
+resultat = total_recettes - total_depenses
 
 solde_actuel = (
     solde_initial
     + total_recettes
     - total_depenses
 )
-
-recettes = recuperer_recettes(
-    entreprise_id
-)
-
-depenses = recuperer_depenses(
-    entreprise_id
-)
-
-nombre_recettes = len(recettes)
-nombre_depenses = len(depenses)
-
-nombre_transactions = (
-    nombre_recettes
-    + nombre_depenses
-)
-
-if total_recettes > 0:
-
-    marge_financiere = (
-        resultat / total_recettes
-    ) * 100
-
-else:
-
-    marge_financiere = 0
 
 
 # ============================================================
@@ -173,288 +396,223 @@ if menu == "📊 Tableau de bord":
 
     st.title("📊 Tableau de bord")
 
-    st.markdown(
-        """
-        <div class="welcome">
-            <h2>Bienvenue sur FinTech PME</h2>
-            <p>
-                Pilotez les finances de votre entreprise
-                depuis un seul espace.
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True
+    st.write(
+        "Bienvenue dans votre espace de gestion financière."
     )
 
-    # --------------------------------------------------------
-    # INDICATEURS PRINCIPAUX
-    # --------------------------------------------------------
+    st.divider()
 
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
+
         st.metric(
             "Solde actuel",
-            f"{solde_actuel:,.0f} FCFA"
+            format_fcfa(solde_actuel)
         )
 
     with col2:
+
         st.metric(
-            "Total des recettes",
-            f"{total_recettes:,.0f} FCFA"
+            "Total recettes",
+            format_fcfa(total_recettes)
         )
 
     with col3:
+
         st.metric(
-            "Total des dépenses",
-            f"{total_depenses:,.0f} FCFA"
+            "Total dépenses",
+            format_fcfa(total_depenses)
         )
 
     with col4:
+
         st.metric(
             "Résultat",
-            f"{resultat:,.0f} FCFA"
+            format_fcfa(resultat)
         )
 
+    st.divider()
+
     # --------------------------------------------------------
-    # INDICATEURS SECONDAIRES
+    # INDICATEURS
     # --------------------------------------------------------
 
-    st.markdown(
-        '<div class="section-title">'
-        'Indicateurs financiers'
-        '</div>',
-        unsafe_allow_html=True
-    )
+    st.subheader("📌 Indicateurs financiers")
 
     col1, col2, col3 = st.columns(3)
 
+    nombre_recettes = len(
+        recuperer_recettes(entreprise_id)
+    )
+
+    nombre_depenses = len(
+        recuperer_depenses(entreprise_id)
+    )
+
+    nombre_transactions = (
+        nombre_recettes + nombre_depenses
+    )
+
     with col1:
+
         st.metric(
             "Nombre de transactions",
             nombre_transactions
         )
 
     with col2:
+
+        if total_recettes > 0:
+
+            marge = (
+                resultat / total_recettes
+            ) * 100
+
+        else:
+
+            marge = 0
+
         st.metric(
             "Marge financière",
-            f"{marge_financiere:.1f}%"
+            f"{marge:.1f} %"
         )
 
     with col3:
 
-        moyenne_recette = (
-            total_recettes / nombre_recettes
-            if nombre_recettes > 0
-            else 0
-        )
+        if nombre_recettes > 0:
+
+            moyenne_recettes = (
+                total_recettes / nombre_recettes
+            )
+
+        else:
+
+            moyenne_recettes = 0
 
         st.metric(
             "Recette moyenne",
-            f"{moyenne_recette:,.0f} FCFA"
+            format_fcfa(moyenne_recettes)
         )
 
+    st.divider()
+
     # --------------------------------------------------------
-    # ÉVOLUTION MENSUELLE
+    # GRAPHIQUE
     # --------------------------------------------------------
 
-    st.markdown(
-        '<div class="section-title">'
-        'Évolution des recettes et dépenses'
-        '</div>',
-        unsafe_allow_html=True
+    st.subheader("📈 Évolution financière")
+
+    recettes = recuperer_recettes(
+        entreprise_id
     )
 
-    evolution = defaultdict(
-        lambda: {
-            "Recettes": 0,
-            "Dépenses": 0
-        }
+    depenses = recuperer_depenses(
+        entreprise_id
     )
+
+    donnees_graphique = {}
 
     for recette in recettes:
 
-        date_transaction = recette[1]
-        montant = recette[2]
+        mois = recette[1][:7]
 
-        try:
-            mois = datetime.strptime(
-                date_transaction,
-                "%Y-%m-%d"
-            ).strftime("%Y-%m")
+        if mois not in donnees_graphique:
 
-        except ValueError:
-            mois = str(date_transaction)[:7]
+            donnees_graphique[mois] = {
+                "Recettes": 0,
+                "Dépenses": 0
+            }
 
-        evolution[mois]["Recettes"] += montant
+        donnees_graphique[mois]["Recettes"] += recette[2]
 
     for depense in depenses:
 
-        date_transaction = depense[1]
-        montant = depense[2]
+        mois = depense[1][:7]
 
-        try:
-            mois = datetime.strptime(
-                date_transaction,
-                "%Y-%m-%d"
-            ).strftime("%Y-%m")
+        if mois not in donnees_graphique:
 
-        except ValueError:
-            mois = str(date_transaction)[:7]
+            donnees_graphique[mois] = {
+                "Recettes": 0,
+                "Dépenses": 0
+            }
 
-        evolution[mois]["Dépenses"] += montant
+        donnees_graphique[mois]["Dépenses"] += depense[2]
 
-    if evolution:
+    if donnees_graphique:
 
-        mois_tries = sorted(
-            evolution.keys()
+        graphique = pd.DataFrame.from_dict(
+            donnees_graphique,
+            orient="index"
         )
 
-        graphique = []
+        graphique.index.name = "Mois"
 
-        for mois in mois_tries:
-
-            graphique.append(
-                {
-                    "Mois": mois,
-                    "Recettes": evolution[mois]["Recettes"],
-                    "Dépenses": evolution[mois]["Dépenses"]
-                }
-            )
+        graphique = graphique.sort_index()
 
         st.line_chart(
-            graphique,
-            x="Mois",
-            y=["Recettes", "Dépenses"]
+            graphique
         )
 
     else:
 
         st.info(
-            "Ajoutez des recettes et des dépenses "
-            "pour afficher l'évolution financière."
+            "Aucune donnée financière disponible pour afficher le graphique."
         )
 
-    # --------------------------------------------------------
-    # ANALYSE DES DÉPENSES
-    # --------------------------------------------------------
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        st.markdown(
-            '<div class="section-title">'
-            'Répartition des dépenses'
-            '</div>',
-            unsafe_allow_html=True
-        )
-
-        categories_depenses = defaultdict(float)
-
-        for depense in depenses:
-
-            categorie = depense[3]
-            montant = depense[2]
-
-            categories_depenses[categorie] += montant
-
-        if categories_depenses:
-
-            categories_tries = sorted(
-                categories_depenses.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )
-
-            graphique_depenses = []
-
-            for categorie, montant in categories_tries:
-
-                graphique_depenses.append(
-                    {
-                        "Catégorie": categorie,
-                        "Montant": montant
-                    }
-                )
-
-            st.bar_chart(
-                graphique_depenses,
-                x="Catégorie",
-                y="Montant"
-            )
-
-        else:
-
-            st.info(
-                "Aucune dépense enregistrée."
-            )
+    st.divider()
 
     # --------------------------------------------------------
     # DERNIÈRES TRANSACTIONS
     # --------------------------------------------------------
 
-    with col2:
+    st.subheader("🧾 Dernières transactions")
 
-        st.markdown(
-            '<div class="section-title">'
-            'Dernières transactions'
-            '</div>',
-            unsafe_allow_html=True
+    transactions = []
+
+    for recette in recettes:
+
+        transactions.append({
+            "Date": recette[1],
+            "Type": "Recette",
+            "Catégorie": recette[3],
+            "Montant": recette[2],
+            "Description": recette[6]
+        })
+
+    for depense in depenses:
+
+        transactions.append({
+            "Date": depense[1],
+            "Type": "Dépense",
+            "Catégorie": depense[3],
+            "Montant": depense[2],
+            "Description": depense[6]
+        })
+
+    if transactions:
+
+        df_transactions = pd.DataFrame(
+            transactions
         )
 
-        transactions = []
-
-        for recette in recettes:
-
-            transactions.append(
-                {
-                    "date": recette[1],
-                    "type": "Recette",
-                    "categorie": recette[3],
-                    "montant": recette[2]
-                }
-            )
-
-        for depense in depenses:
-
-            transactions.append(
-                {
-                    "date": depense[1],
-                    "type": "Dépense",
-                    "categorie": depense[3],
-                    "montant": depense[2]
-                }
-            )
-
-        transactions.sort(
-            key=lambda x: x["date"],
-            reverse=True
+        df_transactions = (
+            df_transactions
+            .sort_values("Date", ascending=False)
+            .head(10)
         )
 
-        if transactions:
+        st.dataframe(
+            df_transactions,
+            use_container_width=True,
+            hide_index=True
+        )
 
-            for transaction in transactions[:5]:
+    else:
 
-                signe = (
-                    "+"
-                    if transaction["type"] == "Recette"
-                    else "-"
-                )
-
-                st.write(
-                    f"**{transaction['date']}** — "
-                    f"{transaction['type']} — "
-                    f"{transaction['categorie']} : "
-                    f"{signe}"
-                    f"{transaction['montant']:,.0f} FCFA"
-                )
-
-        else:
-
-            st.info(
-                "Aucune transaction enregistrée."
-            )
+        st.info(
+            "Aucune transaction enregistrée."
+        )
 
 
 # ============================================================
@@ -465,24 +623,22 @@ elif menu == "💰 Recettes":
 
     st.title("💰 Gestion des recettes")
 
-    st.write(
-        "Enregistrez, recherchez, modifiez et supprimez "
-        "les recettes de votre entreprise."
+    onglet_ajout, onglet_liste = st.tabs(
+        [
+            "➕ Ajouter une recette",
+            "📋 Gérer les recettes"
+        ]
     )
-
-    st.divider()
 
     # --------------------------------------------------------
     # AJOUT
     # --------------------------------------------------------
 
-    st.subheader("➕ Ajouter une recette")
+    with onglet_ajout:
 
-    with st.form("form_recette"):
+        st.subheader("Nouvelle recette")
 
-        col1, col2 = st.columns(2)
-
-        with col1:
+        with st.form("form_recette"):
 
             date_recette = st.date_input(
                 "Date",
@@ -492,26 +648,16 @@ elif menu == "💰 Recettes":
             montant = st.number_input(
                 "Montant (FCFA)",
                 min_value=0.0,
-                step=100.0,
-                format="%.0f"
+                step=100.0
             )
 
-            categorie = st.selectbox(
+            categorie = st.text_input(
                 "Catégorie",
-                [
-                    "Vente",
-                    "Prestation de service",
-                    "Subvention",
-                    "Commission",
-                    "Autre"
-                ]
+                placeholder="Vente, prestation, etc."
             )
-
-        with col2:
 
             source = st.text_input(
-                "Source / Client",
-                placeholder="Exemple : Client ABC"
+                "Source"
             )
 
             moyen_paiement = st.selectbox(
@@ -521,21 +667,21 @@ elif menu == "💰 Recettes":
                     "Mobile Money",
                     "Virement bancaire",
                     "Carte bancaire",
+                    "Chèque",
                     "Autre"
                 ]
             )
 
-            description = st.text_input(
-                "Description",
-                placeholder="Description de la recette"
+            description = st.text_area(
+                "Description"
             )
 
-        submitted = st.form_submit_button(
-            "💾 Enregistrer la recette",
-            use_container_width=True
-        )
+            enregistrer = st.form_submit_button(
+                "Enregistrer la recette",
+                use_container_width=True
+            )
 
-        if submitted:
+        if enregistrer:
 
             if montant <= 0:
 
@@ -543,11 +689,17 @@ elif menu == "💰 Recettes":
                     "Le montant doit être supérieur à zéro."
                 )
 
+            elif not categorie:
+
+                st.error(
+                    "Veuillez renseigner la catégorie."
+                )
+
             else:
 
                 ajouter_recette(
                     entreprise_id,
-                    str(date_recette),
+                    date_recette.strftime("%Y-%m-%d"),
                     montant,
                     categorie,
                     source,
@@ -561,295 +713,209 @@ elif menu == "💰 Recettes":
 
                 st.rerun()
 
-    st.divider()
-
     # --------------------------------------------------------
-    # FILTRES
+    # GESTION
     # --------------------------------------------------------
 
-    st.subheader("🔎 Rechercher et filtrer")
+    with onglet_liste:
 
-    col1, col2, col3 = st.columns(3)
+        st.subheader("Liste des recettes")
 
-    with col1:
-
-        recherche_recette = st.text_input(
-            "Recherche",
-            placeholder="Client, description..."
+        recettes = recuperer_recettes(
+            entreprise_id
         )
 
-    with col2:
+        if recettes:
 
-        filtre_categorie = st.selectbox(
-            "Catégorie",
-            [
-                "Toutes",
-                "Vente",
-                "Prestation de service",
-                "Subvention",
-                "Commission",
-                "Autre"
-            ]
-        )
-
-    with col3:
-
-        filtre_date = st.date_input(
-            "Période",
-            value=(date.today().replace(day=1), date.today()),
-            key="periode_recettes"
-        )
-
-    recettes = recuperer_recettes(
-        entreprise_id
-    )
-
-    recettes_filtrees = []
-
-    for recette in recettes:
-
-        date_recette_obj = datetime.strptime(
-            recette[1],
-            "%Y-%m-%d"
-        ).date()
-
-        correspond_recherche = (
-            not recherche_recette
-            or recherche_recette.lower()
-            in (
-                f"{recette[4] or ''} "
-                f"{recette[6] or ''} "
-                f"{recette[3]}"
-            ).lower()
-        )
-
-        correspond_categorie = (
-            filtre_categorie == "Toutes"
-            or recette[3] == filtre_categorie
-        )
-
-        correspond_date = True
-
-        if isinstance(filtre_date, tuple) and len(filtre_date) == 2:
-
-            date_debut, date_fin = filtre_date
-
-            correspond_date = (
-                date_debut
-                <= date_recette_obj
-                <= date_fin
+            recherche = st.text_input(
+                "🔎 Rechercher",
+                placeholder="Catégorie, source ou description..."
             )
 
-        if (
-            correspond_recherche
-            and correspond_categorie
-            and correspond_date
-        ):
-
-            recettes_filtrees.append(recette)
-
-    # --------------------------------------------------------
-    # EXPORT EXCEL PROFESSIONNEL
-    # --------------------------------------------------------
-
-    st.subheader("📊 Export Excel")
-
-    donnees_excel = []
-
-    for recette in recettes_filtrees:
-
-        donnees_excel.append(
-            {
-                "Date": recette[1],
-                "Montant (FCFA)": recette[2],
-                "Catégorie": recette[3],
-                "Source / Client": recette[4] or "",
-                "Moyen de paiement": recette[5] or "",
-                "Description": recette[6] or ""
-            }
-        )
-
-    df_recettes = pd.DataFrame(donnees_excel)
-
-    sortie_excel = io.BytesIO()
-
-    with pd.ExcelWriter(
-        sortie_excel,
-        engine="openpyxl"
-    ) as writer:
-
-        df_recettes.to_excel(
-            writer,
-            index=False,
-            sheet_name="Recettes",
-            startrow=4
-        )
-
-        feuille = writer.sheets["Recettes"]
-
-        # Titre
-        feuille["A1"] = "FINTECH PME"
-        feuille["A2"] = "Rapport des recettes"
-
-        # Informations
-        feuille["A3"] = (
-            f"Nombre de transactions : "
-            f"{len(recettes_filtrees)}"
-        )
-
-        # Total
-        total_export = sum(
-            recette[2]
-            for recette in recettes_filtrees
-        )
-
-        feuille["A4"] = (
-            f"Total des recettes : "
-            f"{total_export:,.0f} FCFA"
-        )
-
-        # Largeur des colonnes
-        largeurs = {
-            "A": 15,
-            "B": 20,
-            "C": 25,
-            "D": 30,
-            "E": 25,
-            "F": 40
-        }
-
-        for colonne, largeur in largeurs.items():
-            feuille.column_dimensions[
-                colonne
-            ].width = largeur
-
-        # Format monétaire
-        for cellule in feuille["B"][5:]:
-            cellule.number_format = '#,##0 "FCFA"'
-
-        # Filtres Excel
-        if len(df_recettes) > 0:
-
-            feuille.auto_filter.ref = (
-                f"A5:F{len(df_recettes) + 5}"
+            categories = sorted(
+                list(
+                    set(
+                        [r[3] for r in recettes]
+                    )
+                )
             )
 
-        # Figer l'en-tête
-        feuille.freeze_panes = "A6"
+            filtre_categorie = st.selectbox(
+                "Filtrer par catégorie",
+                ["Toutes"] + categories
+            )
 
-    st.download_button(
-        "📊 Télécharger les recettes en Excel",
-        data=sortie_excel.getvalue(),
-        file_name="rapport_recettes_fintech_pme.xlsx",
-        mime=(
-            "application/vnd.openxmlformats-officedocument."
-            "spreadsheetml.sheet"
-        ),
-        use_container_width=True
-    )
+            recettes_filtrees = []
 
-    # --------------------------------------------------------
-    # HISTORIQUE
-    # --------------------------------------------------------
+            for recette in recettes:
 
-    st.divider()
+                texte = " ".join(
+                    [
+                        nettoyer_texte(recette[3]),
+                        nettoyer_texte(recette[4]),
+                        nettoyer_texte(recette[6])
+                    ]
+                ).lower()
 
-    st.subheader(
-        f"📋 Historique ({len(recettes_filtrees)})"
-    )
+                if recherche.lower() not in texte:
+                    continue
 
-    if recettes_filtrees:
+                if (
+                    filtre_categorie != "Toutes"
+                    and recette[3] != filtre_categorie
+                ):
+                    continue
 
-        for recette in recettes_filtrees:
+                recettes_filtrees.append(recette)
 
-            with st.container(border=True):
+            donnees = []
 
-                col1, col2, col3, col4 = st.columns(
-                    [1.2, 1.5, 2, 1.5]
+            for recette in recettes_filtrees:
+
+                donnees.append({
+                    "ID": recette[0],
+                    "Date": recette[1],
+                    "Montant": recette[2],
+                    "Catégorie": recette[3],
+                    "Source": recette[4],
+                    "Paiement": recette[5],
+                    "Description": recette[6]
+                })
+
+            if donnees:
+
+                df = pd.DataFrame(donnees)
+
+                st.dataframe(
+                    df,
+                    use_container_width=True,
+                    hide_index=True
                 )
 
-                with col1:
+                st.divider()
 
-                    st.write(
-                        f"**Date**\n\n{recette[1]}"
-                    )
+                st.subheader("Modifier ou supprimer une recette")
 
-                with col2:
+                ids = [
+                    recette[0]
+                    for recette in recettes_filtrees
+                ]
 
-                    st.write(
-                        f"**Montant**\n\n"
-                        f"{recette[2]:,.0f} FCFA"
-                    )
+                recette_selectionnee = st.selectbox(
+                    "Sélectionner une recette",
+                    ids
+                )
 
-                    st.write(
-                        f"**Catégorie**\n\n"
-                        f"{recette[3]}"
-                    )
+                recette = obtenir_recette(
+                    recette_selectionnee,
+                    entreprise_id
+                )
 
-                with col3:
+                if recette:
 
-                    st.write(
-                        f"**Source**\n\n"
-                        f"{recette[4] or 'Non renseignée'}"
-                    )
+                    col1, col2 = st.columns(2)
 
-                    st.write(
-                        f"**Paiement**\n\n"
-                        f"{recette[5]}"
-                    )
+                    with col1:
 
-                with col4:
+                        nouvelle_date = st.date_input(
+                            "Date",
+                            value=pd.to_datetime(
+                                recette[1]
+                            ).date()
+                        )
 
-                    if st.button(
-                        "✏️ Modifier",
-                        key=f"modifier_recette_{recette[0]}",
-                        use_container_width=True
-                    ):
+                        nouveau_montant = st.number_input(
+                            "Montant",
+                            value=float(recette[2]),
+                            min_value=0.0,
+                            step=100.0
+                        )
 
-                        st.session_state[
-                            "recette_a_modifier"
-                        ] = recette[0]
+                        nouvelle_categorie = st.text_input(
+                            "Catégorie",
+                            value=nettoyer_texte(recette[3])
+                        )
 
-                        st.rerun()
+                    with col2:
 
-                    if st.button(
-                        "🗑️ Supprimer",
-                        key=f"supprimer_recette_{recette[0]}",
-                        use_container_width=True
-                    ):
+                        nouvelle_source = st.text_input(
+                            "Source",
+                            value=nettoyer_texte(recette[4])
+                        )
 
-                        st.session_state[
-                            "recette_a_supprimer"
-                        ] = recette[0]
+                        nouveaux_paiement = st.selectbox(
+                            "Moyen de paiement",
+                            [
+                                "Espèces",
+                                "Mobile Money",
+                                "Virement bancaire",
+                                "Carte bancaire",
+                                "Chèque",
+                                "Autre"
+                            ],
+                            index=(
+                                [
+                                    "Espèces",
+                                    "Mobile Money",
+                                    "Virement bancaire",
+                                    "Carte bancaire",
+                                    "Chèque",
+                                    "Autre"
+                                ].index(recette[5])
+                                if recette[5] in [
+                                    "Espèces",
+                                    "Mobile Money",
+                                    "Virement bancaire",
+                                    "Carte bancaire",
+                                    "Chèque",
+                                    "Autre"
+                                ]
+                                else 0
+                            )
+                        )
 
-                        st.rerun()
+                        nouvelle_description = st.text_area(
+                            "Description",
+                            value=nettoyer_texte(recette[6])
+                        )
 
-                if st.session_state.get(
-                    "recette_a_supprimer"
-                ) == recette[0]:
+                    col_modif, col_suppr = st.columns(2)
 
-                    st.warning(
-                        "Voulez-vous vraiment supprimer cette recette ?"
-                    )
-
-                    col_a, col_b = st.columns(2)
-
-                    with col_a:
+                    with col_modif:
 
                         if st.button(
-                            "Oui, supprimer",
-                            key=f"confirmer_sup_recette_{recette[0]}",
+                            "💾 Enregistrer les modifications",
+                            use_container_width=True
+                        ):
+
+                            modifier_recette(
+                                recette_selectionnee,
+                                entreprise_id,
+                                nouvelle_date.strftime("%Y-%m-%d"),
+                                nouveau_montant,
+                                nouvelle_categorie,
+                                nouvelle_source,
+                                nouveaux_paiement,
+                                nouvelle_description
+                            )
+
+                            st.success(
+                                "Recette modifiée avec succès."
+                            )
+
+                            st.rerun()
+
+                    with col_suppr:
+
+                        if st.button(
+                            "🗑️ Supprimer cette recette",
                             use_container_width=True
                         ):
 
                             supprimer_recette(
-                                recette[0],
+                                recette_selectionnee,
                                 entreprise_id
                             )
-
-                            del st.session_state[
-                                "recette_a_supprimer"
-                            ]
 
                             st.success(
                                 "Recette supprimée."
@@ -857,168 +923,114 @@ elif menu == "💰 Recettes":
 
                             st.rerun()
 
-                    with col_b:
+                # ------------------------------------------------
+                # EXPORT EXCEL
+                # ------------------------------------------------
 
-                        if st.button(
-                            "Annuler",
-                            key=f"annuler_sup_recette_{recette[0]}",
-                            use_container_width=True
-                        ):
+                st.divider()
 
-                            del st.session_state[
-                                "recette_a_supprimer"
-                            ]
+                st.subheader("📥 Export Excel")
 
-                            st.rerun()
+                df_export = pd.DataFrame(
+                    donnees
+                )
 
-                if st.session_state.get(
-                    "recette_a_modifier"
-                ) == recette[0]:
+                buffer = io.BytesIO()
 
-                    st.divider()
+                with pd.ExcelWriter(
+                    buffer,
+                    engine="openpyxl"
+                ) as writer:
 
-                    st.write("### ✏️ Modifier la recette")
+                    df_export.to_excel(
+                        writer,
+                        index=False,
+                        sheet_name="Recettes",
+                        startrow=4
+                    )
 
-                    with st.form(
-                        f"edit_recette_{recette[0]}"
-                    ):
+                    feuille = writer.sheets["Recettes"]
 
-                        nouvelle_date = st.date_input(
-                            "Date",
-                            value=datetime.strptime(
-                                recette[1],
-                                "%Y-%m-%d"
-                            ).date()
-                        )
+                    feuille["A1"] = "FINTECH PME"
+                    feuille["A2"] = "Rapport des recettes"
+                    feuille["A3"] = (
+                        f"Administrateur : "
+                        f"{st.session_state.nom_utilisateur}"
+                    )
 
-                        nouveau_montant = st.number_input(
-                            "Montant (FCFA)",
-                            min_value=0.0,
-                            value=float(recette[2]),
-                            step=100.0,
-                            format="%.0f"
-                        )
+                    for colonne in feuille.columns:
 
-                        nouvelles_categories = [
-                            "Vente",
-                            "Prestation de service",
-                            "Subvention",
-                            "Commission",
-                            "Autre"
-                        ]
+                        longueur = 0
 
-                        index_categorie = (
-                            nouvelles_categories.index(recette[3])
-                            if recette[3]
-                            in nouvelles_categories
-                            else 0
-                        )
+                        for cellule in colonne:
 
-                        nouvelle_categorie = st.selectbox(
-                            "Catégorie",
-                            nouvelles_categories,
-                            index=index_categorie
-                        )
+                            if cellule.value is not None:
 
-                        nouvelle_source = st.text_input(
-                            "Source / Client",
-                            value=recette[4] or ""
-                        )
-
-                        moyens = [
-                            "Espèces",
-                            "Mobile Money",
-                            "Virement bancaire",
-                            "Carte bancaire",
-                            "Autre"
-                        ]
-
-                        index_paiement = (
-                            moyens.index(recette[5])
-                            if recette[5] in moyens
-                            else 0
-                        )
-
-                        nouveau_paiement = st.selectbox(
-                            "Moyen de paiement",
-                            moyens,
-                            index=index_paiement
-                        )
-
-                        nouvelle_description = st.text_input(
-                            "Description",
-                            value=recette[6] or ""
-                        )
-
-                        enregistrer_modification = st.form_submit_button(
-                            "💾 Enregistrer les modifications",
-                            use_container_width=True
-                        )
-
-                        if enregistrer_modification:
-
-                            if nouveau_montant <= 0:
-
-                                st.error(
-                                    "Le montant doit être supérieur à zéro."
+                                longueur = max(
+                                    longueur,
+                                    len(str(cellule.value))
                                 )
 
-                            else:
+                        feuille.column_dimensions[
+                            colonne[0].column_letter
+                        ].width = min(
+                            longueur + 3,
+                            40
+                        )
 
-                                modifier_recette(
-                                    recette[0],
-                                    entreprise_id,
-                                    str(nouvelle_date),
-                                    nouveau_montant,
-                                    nouvelle_categorie,
-                                    nouvelle_source,
-                                    nouveau_paiement,
-                                    nouvelle_description
-                                )
+                    feuille.freeze_panes = "A6"
+                    feuille.auto_filter.ref = (
+                        feuille.dimensions
+                    )
 
-                                del st.session_state[
-                                    "recette_a_modifier"
-                                ]
+                st.download_button(
+                    "📥 Télécharger les recettes en Excel",
+                    data=buffer.getvalue(),
+                    file_name="rapport_recettes.xlsx",
+                    mime=(
+                        "application/vnd.openxmlformats-officedocument."
+                        "spreadsheetml.sheet"
+                    ),
+                    use_container_width=True
+                )
 
-                                st.success(
-                                    "Recette modifiée avec succès."
-                                )
+            else:
 
-                                st.rerun()
+                st.info(
+                    "Aucune recette ne correspond aux critères."
+                )
 
-    else:
+        else:
 
-        st.info(
-            "Aucune recette ne correspond aux critères."
-        )
+            st.info(
+                "Aucune recette enregistrée."
+            )
 
 
 # ============================================================
-# DEPENSES
+# DÉPENSES
 # ============================================================
 
 elif menu == "💸 Dépenses":
 
     st.title("💸 Gestion des dépenses")
 
-    st.write(
-        "Enregistrez, recherchez, modifiez et supprimez "
-        "les dépenses de votre entreprise."
+    onglet_ajout, onglet_liste = st.tabs(
+        [
+            "➕ Ajouter une dépense",
+            "📋 Gérer les dépenses"
+        ]
     )
-
-    st.divider()
 
     # --------------------------------------------------------
     # AJOUT
     # --------------------------------------------------------
 
-    st.subheader("➕ Ajouter une dépense")
+    with onglet_ajout:
 
-    with st.form("form_depense"):
+        st.subheader("Nouvelle dépense")
 
-        col1, col2 = st.columns(2)
-
-        with col1:
+        with st.form("form_depense"):
 
             date_depense = st.date_input(
                 "Date",
@@ -1028,31 +1040,16 @@ elif menu == "💸 Dépenses":
             montant = st.number_input(
                 "Montant (FCFA)",
                 min_value=0.0,
-                step=100.0,
-                format="%.0f"
+                step=100.0
             )
 
-            categorie = st.selectbox(
+            categorie = st.text_input(
                 "Catégorie",
-                [
-                    "Achat de marchandises",
-                    "Transport",
-                    "Salaires",
-                    "Loyer",
-                    "Électricité",
-                    "Eau",
-                    "Téléphone / Internet",
-                    "Fournitures",
-                    "Marketing",
-                    "Autre"
-                ]
+                placeholder="Loyer, salaire, achat, etc."
             )
-
-        with col2:
 
             beneficiaire = st.text_input(
-                "Bénéficiaire / Fournisseur",
-                placeholder="Exemple : Fournisseur ABC"
+                "Bénéficiaire"
             )
 
             moyen_paiement = st.selectbox(
@@ -1062,21 +1059,21 @@ elif menu == "💸 Dépenses":
                     "Mobile Money",
                     "Virement bancaire",
                     "Carte bancaire",
+                    "Chèque",
                     "Autre"
                 ]
             )
 
-            description = st.text_input(
-                "Description",
-                placeholder="Description de la dépense"
+            description = st.text_area(
+                "Description"
             )
 
-        submitted = st.form_submit_button(
-            "💾 Enregistrer la dépense",
-            use_container_width=True
-        )
+            enregistrer = st.form_submit_button(
+                "Enregistrer la dépense",
+                use_container_width=True
+            )
 
-        if submitted:
+        if enregistrer:
 
             if montant <= 0:
 
@@ -1084,11 +1081,17 @@ elif menu == "💸 Dépenses":
                     "Le montant doit être supérieur à zéro."
                 )
 
+            elif not categorie:
+
+                st.error(
+                    "Veuillez renseigner la catégorie."
+                )
+
             else:
 
                 ajouter_depense(
                     entreprise_id,
-                    str(date_depense),
+                    date_depense.strftime("%Y-%m-%d"),
                     montant,
                     categorie,
                     beneficiaire,
@@ -1102,312 +1105,211 @@ elif menu == "💸 Dépenses":
 
                 st.rerun()
 
-    st.divider()
-
     # --------------------------------------------------------
-    # FILTRES
+    # GESTION
     # --------------------------------------------------------
 
-    st.subheader("🔎 Rechercher et filtrer")
+    with onglet_liste:
 
-    col1, col2, col3 = st.columns(3)
+        st.subheader("Liste des dépenses")
 
-    with col1:
-
-        recherche_depense = st.text_input(
-            "Recherche",
-            placeholder="Fournisseur, description..."
+        depenses = recuperer_depenses(
+            entreprise_id
         )
 
-    with col2:
+        if depenses:
 
-        categories_depense_filtre = [
-            "Toutes",
-            "Achat de marchandises",
-            "Transport",
-            "Salaires",
-            "Loyer",
-            "Électricité",
-            "Eau",
-            "Téléphone / Internet",
-            "Fournitures",
-            "Marketing",
-            "Autre"
-        ]
-
-        filtre_categorie_depense = st.selectbox(
-            "Catégorie",
-            categories_depense_filtre
-        )
-
-    with col3:
-
-        filtre_date_depense = st.date_input(
-            "Période",
-            value=(date.today().replace(day=1), date.today()),
-            key="periode_depenses"
-        )
-
-    depenses = recuperer_depenses(
-        entreprise_id
-    )
-
-    depenses_filtrees = []
-
-    for depense in depenses:
-
-        date_depense_obj = datetime.strptime(
-            depense[1],
-            "%Y-%m-%d"
-        ).date()
-
-        correspond_recherche = (
-            not recherche_depense
-            or recherche_depense.lower()
-            in (
-                f"{depense[4] or ''} "
-                f"{depense[6] or ''} "
-                f"{depense[3]}"
-            ).lower()
-        )
-
-        correspond_categorie = (
-            filtre_categorie_depense == "Toutes"
-            or depense[3] == filtre_categorie_depense
-        )
-
-        correspond_date = True
-
-        if (
-            isinstance(
-                filtre_date_depense,
-                tuple
-            )
-            and len(filtre_date_depense) == 2
-        ):
-
-            date_debut, date_fin = filtre_date_depense
-
-            correspond_date = (
-                date_debut
-                <= date_depense_obj
-                <= date_fin
+            recherche = st.text_input(
+                "🔎 Rechercher",
+                placeholder="Catégorie, bénéficiaire ou description..."
             )
 
-        if (
-            correspond_recherche
-            and correspond_categorie
-            and correspond_date
-        ):
-
-            depenses_filtrees.append(depense)
-
-      # --------------------------------------------------------
-    # EXPORT EXCEL PROFESSIONNEL
-    # --------------------------------------------------------
-
-    st.subheader("📊 Export Excel")
-
-    donnees_excel = []
-
-    for depense in depenses_filtrees:
-
-        donnees_excel.append(
-            {
-                "Date": depense[1],
-                "Montant (FCFA)": depense[2],
-                "Catégorie": depense[3],
-                "Bénéficiaire / Fournisseur": depense[4] or "",
-                "Moyen de paiement": depense[5] or "",
-                "Description": depense[6] or ""
-            }
-        )
-
-    df_depenses = pd.DataFrame(
-        donnees_excel
-    )
-
-    sortie_excel = io.BytesIO()
-
-    with pd.ExcelWriter(
-        sortie_excel,
-        engine="openpyxl"
-    ) as writer:
-
-        df_depenses.to_excel(
-            writer,
-            index=False,
-            sheet_name="Dépenses",
-            startrow=4
-        )
-
-        feuille = writer.sheets["Dépenses"]
-
-        # Titre
-        feuille["A1"] = "FINTECH PME"
-        feuille["A2"] = "Rapport des dépenses"
-
-        # Informations
-        feuille["A3"] = (
-            f"Nombre de transactions : "
-            f"{len(depenses_filtrees)}"
-        )
-
-        # Total
-        total_export = sum(
-            depense[2]
-            for depense in depenses_filtrees
-        )
-
-        feuille["A4"] = (
-            f"Total des dépenses : "
-            f"{total_export:,.0f} FCFA"
-        )
-
-        # Largeur des colonnes
-        largeurs = {
-            "A": 15,
-            "B": 20,
-            "C": 30,
-            "D": 35,
-            "E": 25,
-            "F": 40
-        }
-
-        for colonne, largeur in largeurs.items():
-
-            feuille.column_dimensions[
-                colonne
-            ].width = largeur
-
-        # Format monétaire
-        for cellule in feuille["B"][5:]:
-
-            cellule.number_format = '#,##0 "FCFA"'
-
-        # Filtres Excel
-        if len(df_depenses) > 0:
-
-            feuille.auto_filter.ref = (
-                f"A5:F{len(df_depenses) + 5}"
+            categories = sorted(
+                list(
+                    set(
+                        [d[3] for d in depenses]
+                    )
+                )
             )
 
-        # Figer l'en-tête
-        feuille.freeze_panes = "A6"
+            filtre_categorie = st.selectbox(
+                "Filtrer par catégorie",
+                ["Toutes"] + categories
+            )
 
-    st.download_button(
-        "📊 Télécharger les dépenses en Excel",
-        data=sortie_excel.getvalue(),
-        file_name="rapport_depenses_fintech_pme.xlsx",
-        mime=(
-            "application/vnd.openxmlformats-officedocument."
-            "spreadsheetml.sheet"
-        ),
-        use_container_width=True
-    )
+            depenses_filtrees = []
 
-    # --------------------------------------------------------
-    # HISTORIQUE
-    # --------------------------------------------------------
+            for depense in depenses:
 
-    st.divider()
+                texte = " ".join(
+                    [
+                        nettoyer_texte(depense[3]),
+                        nettoyer_texte(depense[4]),
+                        nettoyer_texte(depense[6])
+                    ]
+                ).lower()
 
-    st.subheader(
-        f"📋 Historique ({len(depenses_filtrees)})"
-    )
+                if recherche.lower() not in texte:
+                    continue
 
-    if depenses_filtrees:
+                if (
+                    filtre_categorie != "Toutes"
+                    and depense[3] != filtre_categorie
+                ):
+                    continue
 
-        for depense in depenses_filtrees:
+                depenses_filtrees.append(depense)
 
-            with st.container(border=True):
+            donnees = []
 
-                col1, col2, col3, col4 = st.columns(
-                    [1.2, 1.5, 2, 1.5]
+            for depense in depenses_filtrees:
+
+                donnees.append({
+                    "ID": depense[0],
+                    "Date": depense[1],
+                    "Montant": depense[2],
+                    "Catégorie": depense[3],
+                    "Bénéficiaire": depense[4],
+                    "Paiement": depense[5],
+                    "Description": depense[6]
+                })
+
+            if donnees:
+
+                df = pd.DataFrame(
+                    donnees
                 )
 
-                with col1:
+                st.dataframe(
+                    df,
+                    use_container_width=True,
+                    hide_index=True
+                )
 
-                    st.write(
-                        f"**Date**\n\n{depense[1]}"
-                    )
+                st.divider()
 
-                with col2:
+                st.subheader("Modifier ou supprimer une dépense")
 
-                    st.write(
-                        f"**Montant**\n\n"
-                        f"{depense[2]:,.0f} FCFA"
-                    )
+                ids = [
+                    depense[0]
+                    for depense in depenses_filtrees
+                ]
 
-                    st.write(
-                        f"**Catégorie**\n\n"
-                        f"{depense[3]}"
-                    )
+                depense_selectionnee = st.selectbox(
+                    "Sélectionner une dépense",
+                    ids
+                )
 
-                with col3:
+                depense = obtenir_depense(
+                    depense_selectionnee,
+                    entreprise_id
+                )
 
-                    st.write(
-                        f"**Bénéficiaire**\n\n"
-                        f"{depense[4] or 'Non renseigné'}"
-                    )
+                if depense:
 
-                    st.write(
-                        f"**Paiement**\n\n"
-                        f"{depense[5]}"
-                    )
+                    col1, col2 = st.columns(2)
 
-                with col4:
+                    with col1:
 
-                    if st.button(
-                        "✏️ Modifier",
-                        key=f"modifier_depense_{depense[0]}",
-                        use_container_width=True
-                    ):
+                        nouvelle_date = st.date_input(
+                            "Date",
+                            value=pd.to_datetime(
+                                depense[1]
+                            ).date()
+                        )
 
-                        st.session_state[
-                            "depense_a_modifier"
-                        ] = depense[0]
+                        nouveau_montant = st.number_input(
+                            "Montant",
+                            value=float(depense[2]),
+                            min_value=0.0,
+                            step=100.0
+                        )
 
-                        st.rerun()
+                        nouvelle_categorie = st.text_input(
+                            "Catégorie",
+                            value=nettoyer_texte(depense[3])
+                        )
 
-                    if st.button(
-                        "🗑️ Supprimer",
-                        key=f"supprimer_depense_{depense[0]}",
-                        use_container_width=True
-                    ):
+                    with col2:
 
-                        st.session_state[
-                            "depense_a_supprimer"
-                        ] = depense[0]
+                        nouveau_beneficiaire = st.text_input(
+                            "Bénéficiaire",
+                            value=nettoyer_texte(depense[4])
+                        )
 
-                        st.rerun()
+                        nouveau_paiement = st.selectbox(
+                            "Moyen de paiement",
+                            [
+                                "Espèces",
+                                "Mobile Money",
+                                "Virement bancaire",
+                                "Carte bancaire",
+                                "Chèque",
+                                "Autre"
+                            ],
+                            index=(
+                                [
+                                    "Espèces",
+                                    "Mobile Money",
+                                    "Virement bancaire",
+                                    "Carte bancaire",
+                                    "Chèque",
+                                    "Autre"
+                                ].index(depense[5])
+                                if depense[5] in [
+                                    "Espèces",
+                                    "Mobile Money",
+                                    "Virement bancaire",
+                                    "Carte bancaire",
+                                    "Chèque",
+                                    "Autre"
+                                ]
+                                else 0
+                            )
+                        )
 
-                if st.session_state.get(
-                    "depense_a_supprimer"
-                ) == depense[0]:
+                        nouvelle_description = st.text_area(
+                            "Description",
+                            value=nettoyer_texte(depense[6])
+                        )
 
-                    st.warning(
-                        "Voulez-vous vraiment supprimer cette dépense ?"
-                    )
+                    col_modif, col_suppr = st.columns(2)
 
-                    col_a, col_b = st.columns(2)
-
-                    with col_a:
+                    with col_modif:
 
                         if st.button(
-                            "Oui, supprimer",
-                            key=f"confirmer_sup_depense_{depense[0]}",
+                            "💾 Enregistrer les modifications",
+                            use_container_width=True
+                        ):
+
+                            modifier_depense(
+                                depense_selectionnee,
+                                entreprise_id,
+                                nouvelle_date.strftime("%Y-%m-%d"),
+                                nouveau_montant,
+                                nouvelle_categorie,
+                                nouveau_beneficiaire,
+                                nouveau_paiement,
+                                nouvelle_description
+                            )
+
+                            st.success(
+                                "Dépense modifiée avec succès."
+                            )
+
+                            st.rerun()
+
+                    with col_suppr:
+
+                        if st.button(
+                            "🗑️ Supprimer cette dépense",
                             use_container_width=True
                         ):
 
                             supprimer_depense(
-                                depense[0],
+                                depense_selectionnee,
                                 entreprise_id
                             )
-
-                            del st.session_state[
-                                "depense_a_supprimer"
-                            ]
 
                             st.success(
                                 "Dépense supprimée."
@@ -1415,157 +1317,99 @@ elif menu == "💸 Dépenses":
 
                             st.rerun()
 
-                    with col_b:
+                # ------------------------------------------------
+                # EXPORT EXCEL
+                # ------------------------------------------------
 
-                        if st.button(
-                            "Annuler",
-                            key=f"annuler_sup_depense_{depense[0]}",
-                            use_container_width=True
-                        ):
+                st.divider()
 
-                            del st.session_state[
-                                "depense_a_supprimer"
-                            ]
+                st.subheader("📥 Export Excel")
 
-                            st.rerun()
+                df_export = pd.DataFrame(
+                    donnees
+                )
 
-                if st.session_state.get(
-                    "depense_a_modifier"
-                ) == depense[0]:
+                buffer = io.BytesIO()
 
-                    st.divider()
+                with pd.ExcelWriter(
+                    buffer,
+                    engine="openpyxl"
+                ) as writer:
 
-                    st.write("### ✏️ Modifier la dépense")
+                    df_export.to_excel(
+                        writer,
+                        index=False,
+                        sheet_name="Depenses",
+                        startrow=4
+                    )
 
-                    with st.form(
-                        f"edit_depense_{depense[0]}"
-                    ):
+                    feuille = writer.sheets["Depenses"]
 
-                        nouvelle_date = st.date_input(
-                            "Date",
-                            value=datetime.strptime(
-                                depense[1],
-                                "%Y-%m-%d"
-                            ).date()
-                        )
+                    feuille["A1"] = "FINTECH PME"
+                    feuille["A2"] = "Rapport des dépenses"
+                    feuille["A3"] = (
+                        f"Administrateur : "
+                        f"{st.session_state.nom_utilisateur}"
+                    )
 
-                        nouveau_montant = st.number_input(
-                            "Montant (FCFA)",
-                            min_value=0.0,
-                            value=float(depense[2]),
-                            step=100.0,
-                            format="%.0f"
-                        )
+                    for colonne in feuille.columns:
 
-                        categories = [
-                            "Achat de marchandises",
-                            "Transport",
-                            "Salaires",
-                            "Loyer",
-                            "Électricité",
-                            "Eau",
-                            "Téléphone / Internet",
-                            "Fournitures",
-                            "Marketing",
-                            "Autre"
-                        ]
+                        longueur = 0
 
-                        index_categorie = (
-                            categories.index(depense[3])
-                            if depense[3] in categories
-                            else 0
-                        )
+                        for cellule in colonne:
 
-                        nouvelle_categorie = st.selectbox(
-                            "Catégorie",
-                            categories,
-                            index=index_categorie
-                        )
+                            if cellule.value is not None:
 
-                        nouveau_beneficiaire = st.text_input(
-                            "Bénéficiaire / Fournisseur",
-                            value=depense[4] or ""
-                        )
-
-                        moyens = [
-                            "Espèces",
-                            "Mobile Money",
-                            "Virement bancaire",
-                            "Carte bancaire",
-                            "Autre"
-                        ]
-
-                        index_paiement = (
-                            moyens.index(depense[5])
-                            if depense[5] in moyens
-                            else 0
-                        )
-
-                        nouveau_paiement = st.selectbox(
-                            "Moyen de paiement",
-                            moyens,
-                            index=index_paiement
-                        )
-
-                        nouvelle_description = st.text_input(
-                            "Description",
-                            value=depense[6] or ""
-                        )
-
-                        enregistrer_modification = st.form_submit_button(
-                            "💾 Enregistrer les modifications",
-                            use_container_width=True
-                        )
-
-                        if enregistrer_modification:
-
-                            if nouveau_montant <= 0:
-
-                                st.error(
-                                    "Le montant doit être supérieur à zéro."
+                                longueur = max(
+                                    longueur,
+                                    len(str(cellule.value))
                                 )
 
-                            else:
+                        feuille.column_dimensions[
+                            colonne[0].column_letter
+                        ].width = min(
+                            longueur + 3,
+                            40
+                        )
 
-                                modifier_depense(
-                                    depense[0],
-                                    entreprise_id,
-                                    str(nouvelle_date),
-                                    nouveau_montant,
-                                    nouvelle_categorie,
-                                    nouveau_beneficiaire,
-                                    nouveau_paiement,
-                                    nouvelle_description
-                                )
+                    feuille.freeze_panes = "A6"
+                    feuille.auto_filter.ref = (
+                        feuille.dimensions
+                    )
 
-                                del st.session_state[
-                                    "depense_a_modifier"
-                                ]
+                st.download_button(
+                    "📥 Télécharger les dépenses en Excel",
+                    data=buffer.getvalue(),
+                    file_name="rapport_depenses.xlsx",
+                    mime=(
+                        "application/vnd.openxmlformats-officedocument."
+                        "spreadsheetml.sheet"
+                    ),
+                    use_container_width=True
+                )
 
-                                st.success(
-                                    "Dépense modifiée avec succès."
-                                )
+            else:
 
-                                st.rerun()
+                st.info(
+                    "Aucune dépense ne correspond aux critères."
+                )
 
-    else:
+        else:
 
-        st.info(
-            "Aucune dépense ne correspond aux critères."
-        )
+            st.info(
+                "Aucune dépense enregistrée."
+            )
 
 
 # ============================================================
-# TRESORERIE
+# TRÉSORERIE
 # ============================================================
 
 elif menu == "🏦 Trésorerie":
 
-    st.title("🏦 Trésorerie")
+    st.title("🏦 Gestion de la trésorerie")
 
-    st.subheader(
-        "Situation de trésorerie"
-    )
+    st.subheader("Situation financière")
 
     col1, col2, col3 = st.columns(3)
 
@@ -1573,28 +1417,78 @@ elif menu == "🏦 Trésorerie":
 
         st.metric(
             "Solde initial",
-            f"{solde_initial:,.0f} FCFA"
+            format_fcfa(solde_initial)
         )
 
     with col2:
 
         st.metric(
-            "Entrées",
-            f"{total_recettes:,.0f} FCFA"
+            "Entrées nettes",
+            format_fcfa(
+                total_recettes - total_depenses
+            )
         )
 
     with col3:
 
         st.metric(
-            "Sorties",
-            f"{total_depenses:,.0f} FCFA"
+            "Solde actuel",
+            format_fcfa(solde_actuel)
         )
 
     st.divider()
 
-    st.metric(
-        "Solde actuel",
-        f"{solde_actuel:,.0f} FCFA"
+    st.subheader("Modifier le solde initial")
+
+    with st.form("form_solde_initial"):
+
+        nouveau_solde = st.number_input(
+            "Solde initial (FCFA)",
+            min_value=0.0,
+            value=float(solde_initial),
+            step=1000.0
+        )
+
+        modifier = st.form_submit_button(
+            "💾 Enregistrer",
+            use_container_width=True
+        )
+
+    if modifier:
+
+        modifier_solde_initial(
+            entreprise_id,
+            nouveau_solde
+        )
+
+        st.success(
+            "Solde initial mis à jour."
+        )
+
+        st.rerun()
+
+    st.divider()
+
+    st.subheader("Résumé")
+
+    st.write(
+        f"Solde initial : **{format_fcfa(solde_initial)}**"
+    )
+
+    st.write(
+        f"Total des recettes : **{format_fcfa(total_recettes)}**"
+    )
+
+    st.write(
+        f"Total des dépenses : **{format_fcfa(total_depenses)}**"
+    )
+
+    st.write(
+        f"Résultat : **{format_fcfa(resultat)}**"
+    )
+
+    st.write(
+        f"Solde actuel : **{format_fcfa(solde_actuel)}**"
     )
 
 
@@ -1604,51 +1498,77 @@ elif menu == "🏦 Trésorerie":
 
 elif menu == "📈 Rapports":
 
-    st.title("📈 Rapports")
+    st.title("📈 Rapports financiers")
 
     st.info(
-        "Le module de rapports financiers sera développé "
-        "dans une prochaine étape."
+        "Le module de rapports avancés sera développé "
+        "dans la prochaine étape."
+    )
+
+    st.subheader("Résumé financier")
+
+    donnees_resume = pd.DataFrame(
+        {
+            "Indicateur": [
+                "Solde initial",
+                "Total recettes",
+                "Total dépenses",
+                "Résultat",
+                "Solde actuel"
+            ],
+            "Montant (FCFA)": [
+                solde_initial,
+                total_recettes,
+                total_depenses,
+                resultat,
+                solde_actuel
+            ]
+        }
+    )
+
+    st.dataframe(
+        donnees_resume,
+        use_container_width=True,
+        hide_index=True
     )
 
 
 # ============================================================
-# PARAMETRES
+# PARAMÈTRES
 # ============================================================
 
 elif menu == "⚙️ Paramètres":
 
     st.title("⚙️ Paramètres")
 
-    st.subheader(
-        "💰 Solde initial"
+    st.subheader("👤 Administrateur")
+
+    st.write(
+        f"**Nom :** {st.session_state.nom_utilisateur}"
     )
 
     st.write(
-        "Indiquez le montant disponible dans la caisse "
-        "ou les comptes de l'entreprise au début du suivi."
+        f"**E-mail :** {st.session_state.email_utilisateur}"
     )
 
-    nouveau_solde = st.number_input(
-        "Solde initial (FCFA)",
-        min_value=0.0,
-        value=float(solde_initial),
-        step=1000.0,
-        format="%.0f"
+    st.write(
+        "**Rôle :** Administrateur"
     )
 
-    if st.button(
-        "💾 Enregistrer le solde initial",
-        use_container_width=True
-    ):
+    st.divider()
 
-        modifier_solde_initial(
-            entreprise_id,
-            nouveau_solde
-        )
+    st.subheader("🔐 Sécurité")
 
-        st.success(
-            "Solde initial enregistré avec succès."
-        )
+    st.info(
+        "L'accès à la plateforme est actuellement réservé "
+        "aux administrateurs."
+    )
 
-        st.rerun()
+    st.divider()
+
+    st.subheader("🏢 Entreprise")
+
+    st.info(
+        "Les informations détaillées de l'entreprise seront "
+        "configurables dans une prochaine version."
+    )
