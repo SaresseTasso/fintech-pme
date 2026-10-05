@@ -49,33 +49,6 @@ st.markdown(
         padding-bottom: 2rem;
     }
 
-    .metric-card {
-        padding: 18px;
-        border-radius: 12px;
-        border: 1px solid #e6e6e6;
-        background-color: white;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-    }
-
-    .metric-title {
-        font-size: 13px;
-        color: #666666;
-        margin-bottom: 6px;
-    }
-
-    .metric-value {
-        font-size: 25px;
-        font-weight: 700;
-    }
-
-    .positive {
-        color: #16803c;
-    }
-
-    .negative {
-        color: #c62828;
-    }
-
     .section-title {
         font-size: 20px;
         font-weight: 700;
@@ -130,7 +103,7 @@ with st.sidebar:
 
 
 # ============================================================
-# DONNÉES
+# DONNÉES FINANCIÈRES
 # ============================================================
 
 solde_initial = obtenir_solde_initial(
@@ -206,35 +179,39 @@ if menu == "📊 Tableau de bord":
     )
 
 
-# --------------------------------------------------------
-# INDICATEURS PRINCIPAUX
-# --------------------------------------------------------
+    # --------------------------------------------------------
+    # INDICATEURS PRINCIPAUX
+    # --------------------------------------------------------
 
-col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4 = st.columns(4)
 
-with col1:
-    st.metric(
-        "Solde actuel",
-        f"{solde_actuel:,.0f} FCFA"
-    )
+    with col1:
 
-with col2:
-    st.metric(
-        "Total des recettes",
-        f"{total_recettes:,.0f} FCFA"
-    )
+        st.metric(
+            "Solde actuel",
+            f"{solde_actuel:,.0f} FCFA"
+        )
 
-with col3:
-    st.metric(
-        "Total des dépenses",
-        f"{total_depenses:,.0f} FCFA"
-    )
+    with col2:
 
-with col4:
-    st.metric(
-        "Résultat",
-        f"{resultat:,.0f} FCFA"
-    )
+        st.metric(
+            "Total des recettes",
+            f"{total_recettes:,.0f} FCFA"
+        )
+
+    with col3:
+
+        st.metric(
+            "Total des dépenses",
+            f"{total_depenses:,.0f} FCFA"
+        )
+
+    with col4:
+
+        st.metric(
+            "Résultat",
+            f"{resultat:,.0f} FCFA"
+        )
 
 
     # --------------------------------------------------------
@@ -377,7 +354,6 @@ with col4:
 
     col1, col2 = st.columns(2)
 
-
     with col1:
 
         st.markdown(
@@ -388,7 +364,6 @@ with col4:
         )
 
         categories_depenses = defaultdict(float)
-
 
         for depense in depenses:
 
