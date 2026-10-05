@@ -108,7 +108,6 @@ def ajouter_recette(
 
 def recuperer_recettes(entreprise_id):
     connection = get_connection()
-
     cursor = connection.cursor()
 
     cursor.execute("""
@@ -130,7 +129,9 @@ def recuperer_recettes(entreprise_id):
     connection.close()
 
     return recettes
-    def obtenir_entreprise_par_defaut():
+
+
+def obtenir_entreprise_par_defaut():
     connection = get_connection()
     cursor = connection.cursor()
 
