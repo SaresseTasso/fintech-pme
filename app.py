@@ -7,7 +7,9 @@ from database import (
     ajouter_recette,
     recuperer_recettes,
     ajouter_depense,
-    recuperer_depenses
+    recuperer_depenses,
+    calculer_total_recettes,
+    calculer_total_depenses
 )
 
 # --------------------------------------------------
@@ -28,6 +30,10 @@ st.set_page_config(
 initialize_database()
 
 entreprise_id = obtenir_entreprise_par_defaut()
+total_recettes = calculer_total_recettes(entreprise_id)
+total_depenses = calculer_total_depenses(entreprise_id)
+resultat = total_recettes - total_depenses
+solde_actuel = resultat
 
 # --------------------------------------------------
 # STYLE
@@ -116,6 +122,11 @@ with st.sidebar:
 
 if menu == "📊 Tableau de bord":
 
+    total_recettes = calculer_total_recettes(entreprise_id)
+    total_depenses = calculer_total_depenses(entreprise_id)
+    resultat = total_recettes - total_depenses
+    solde_actuel = resultat
+
     st.title("Tableau de bord")
 
     st.markdown(
@@ -135,10 +146,12 @@ if menu == "📊 Tableau de bord":
 
     with col1:
         st.markdown(
-            """
+            f"""
             <div class="metric-card">
                 <div class="metric-title">Solde actuel</div>
-                <div class="metric-value">0 FCFA</div>
+                <div class="metric-value">
+                    {solde_actuel:,.0f} FCFA
+                </div>
             </div>
             """,
             unsafe_allow_html=True
@@ -146,10 +159,12 @@ if menu == "📊 Tableau de bord":
 
     with col2:
         st.markdown(
-            """
+            f"""
             <div class="metric-card">
                 <div class="metric-title">Recettes</div>
-                <div class="metric-value">0 FCFA</div>
+                <div class="metric-value">
+                    {total_recettes:,.0f} FCFA
+                </div>
             </div>
             """,
             unsafe_allow_html=True
@@ -157,10 +172,12 @@ if menu == "📊 Tableau de bord":
 
     with col3:
         st.markdown(
-            """
+            f"""
             <div class="metric-card">
                 <div class="metric-title">Dépenses</div>
-                <div class="metric-value">0 FCFA</div>
+                <div class="metric-value">
+                    {total_depenses:,.0f} FCFA
+                </div>
             </div>
             """,
             unsafe_allow_html=True
@@ -168,10 +185,12 @@ if menu == "📊 Tableau de bord":
 
     with col4:
         st.markdown(
-            """
+            f"""
             <div class="metric-card">
                 <div class="metric-title">Résultat</div>
-                <div class="metric-value">0 FCFA</div>
+                <div class="metric-value">
+                    {resultat:,.0f} FCFA
+                </div>
             </div>
             """,
             unsafe_allow_html=True
@@ -207,7 +226,7 @@ if menu == "📊 Tableau de bord":
     )
 
     st.info(
-        "Aucune transaction enregistrée pour le moment."
+        "Les dernières transactions seront affichées ici."
     )
 
 
