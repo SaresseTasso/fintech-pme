@@ -28,6 +28,7 @@ st.set_page_config(
 )
 
 initialize_database()
+
 entreprise_id = obtenir_entreprise_par_defaut()
 
 
@@ -129,7 +130,7 @@ with st.sidebar:
 
 
 # ============================================================
-# DONNÉES FINANCIÈRES
+# DONNÉES
 # ============================================================
 
 solde_initial = obtenir_solde_initial(
@@ -164,6 +165,7 @@ depenses = recuperer_depenses(
 )
 
 nombre_recettes = len(recettes)
+
 nombre_depenses = len(depenses)
 
 nombre_transactions = (
@@ -172,10 +174,13 @@ nombre_transactions = (
 )
 
 if total_recettes > 0:
+
     marge_financiere = (
         resultat / total_recettes
     ) * 100
+
 else:
+
     marge_financiere = 0
 
 
@@ -323,99 +328,105 @@ if menu == "📊 Tableau de bord":
         )
 
 
- # --------------------------------------------------------
-# EVOLUTION MENSUELLE
-# --------------------------------------------------------
+    # --------------------------------------------------------
+    # ÉVOLUTION MENSUELLE
+    # --------------------------------------------------------
 
-st.markdown(
-    '<div class="section-title">'
-    'Évolution des recettes et dépenses'
-    '</div>',
-    unsafe_allow_html=True
-)
-
-evolution = defaultdict(
-    lambda: {
-        "Recettes": 0,
-        "Dépenses": 0
-    }
-)
-
-for recette in recettes:
-
-    date_transaction = recette[1]
-    montant = recette[2]
-
-    try:
-        mois = datetime.strptime(
-            date_transaction,
-            "%Y-%m-%d"
-        ).strftime("%Y-%m")
-
-    except ValueError:
-        mois = str(date_transaction)[:7]
-
-    evolution[mois]["Recettes"] += montant
-
-
-for depense in depenses:
-
-    date_transaction = depense[1]
-    montant = depense[2]
-
-    try:
-        mois = datetime.strptime(
-            date_transaction,
-            "%Y-%m-%d"
-        ).strftime("%Y-%m")
-
-    except ValueError:
-        mois = str(date_transaction)[:7]
-
-    evolution[mois]["Dépenses"] += montant
-
-
-if evolution:
-
-    mois_tries = sorted(
-        evolution.keys()
+    st.markdown(
+        '<div class="section-title">'
+        'Évolution des recettes et dépenses'
+        '</div>',
+        unsafe_allow_html=True
     )
 
-    graphique = {
-        "Mois": mois_tries,
-        "Recettes": [
-            evolution[mois]["Recettes"]
-            for mois in mois_tries
-        ],
-        "Dépenses": [
-            evolution[mois]["Dépenses"]
-            for mois in mois_tries
-        ]
-    }
-
-    st.line_chart(
-        graphique,
-        x="Mois",
-        y=["Recettes", "Dépenses"]
+    evolution = defaultdict(
+        lambda: {
+            "Recettes": 0,
+            "Dépenses": 0
+        }
     )
 
-else:
 
-    st.info(
-        "Ajoutez des recettes et des dépenses "
-        "pour afficher l'évolution financière."
-    )
+    for recette in recettes:
+
+        date_transaction = recette[1]
+        montant = recette[2]
+
+        try:
+
+            mois = datetime.strptime(
+                date_transaction,
+                "%Y-%m-%d"
+            ).strftime("%Y-%m")
+
+        except ValueError:
+
+            mois = str(
+                date_transaction
+            )[:7]
+
+        evolution[mois]["Recettes"] += montant
+
+
+    for depense in depenses:
+
+        date_transaction = depense[1]
+        montant = depense[2]
+
+        try:
+
+            mois = datetime.strptime(
+                date_transaction,
+                "%Y-%m-%d"
+            ).strftime("%Y-%m")
+
+        except ValueError:
+
+            mois = str(
+                date_transaction
+            )[:7]
+
+        evolution[mois]["Dépenses"] += montant
+
+
+    if evolution:
+
+        mois_tries = sorted(
+            evolution.keys()
+        )
+
+        graphique = []
+
+        for mois in mois_tries:
+
+            graphique.append(
+                {
+                    "Mois": mois,
+                    "Recettes": evolution[mois]["Recettes"],
+                    "Dépenses": evolution[mois]["Dépenses"]
+                }
+            )
+
+        st.line_chart(
+            graphique,
+            x="Mois",
+            y=["Recettes", "Dépenses"]
+        )
+
+    else:
+
+        st.info(
+            "Ajoutez des recettes et des dépenses "
+            "pour afficher l'évolution financière."
+        )
+
 
     # --------------------------------------------------------
-    # DEUX COLONNES
+    # ANALYSE DES DÉPENSES
     # --------------------------------------------------------
 
     col1, col2 = st.columns(2)
 
-
-    # --------------------------------------------------------
-    # RÉPARTITION DES DÉPENSES
-    # --------------------------------------------------------
 
     with col1:
 
@@ -427,6 +438,7 @@ else:
         )
 
         categories_depenses = defaultdict(float)
+
 
         for depense in depenses:
 
@@ -446,23 +458,21 @@ else:
                 reverse=True
             )
 
-            graphique_depenses = {
-                "Montant": [
-                    montant
-                    for categorie, montant
-                    in categories_tries
-                ]
-            }
+            graphique_depenses = []
 
-            categories = [
-                categorie
-                for categorie, montant
-                in categories_tries
-            ]
+            for categorie, montant in categories_tries:
+
+                graphique_depenses.append(
+                    {
+                        "Catégorie": categorie,
+                        "Montant": montant
+                    }
+                )
 
             st.bar_chart(
                 graphique_depenses,
-                x=categories
+                x="Catégorie",
+                y="Montant"
             )
 
         else:
@@ -560,7 +570,9 @@ elif menu == "💰 Recettes":
 
     st.divider()
 
-    st.subheader("➕ Ajouter une recette")
+    st.subheader(
+        "➕ Ajouter une recette"
+    )
 
     with st.form("form_recette"):
 
@@ -658,6 +670,7 @@ elif menu == "💰 Recettes":
         entreprise_id
     )
 
+
     if recettes:
 
         for recette in recettes:
@@ -721,7 +734,9 @@ elif menu == "💸 Dépenses":
 
     st.divider()
 
-    st.subheader("➕ Ajouter une dépense")
+    st.subheader(
+        "➕ Ajouter une dépense"
+    )
 
     with st.form("form_depense"):
 
@@ -823,6 +838,7 @@ elif menu == "💸 Dépenses":
     depenses = recuperer_depenses(
         entreprise_id
     )
+
 
     if depenses:
 
