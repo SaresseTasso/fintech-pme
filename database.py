@@ -1,15 +1,31 @@
 import sqlite3
+import hashlib
+from datetime import datetime
+
 
 DATABASE_NAME = "fintech_pme.db"
 
+
+# ============================================================
+# CONNEXION
+# ============================================================
 
 def get_connection():
     return sqlite3.connect(DATABASE_NAME)
 
 
+# ============================================================
+# INITIALISATION DE LA BASE
+# ============================================================
+
 def initialize_database():
+
     connection = get_connection()
     cursor = connection.cursor()
+
+    # --------------------------------------------------------
+    # ENTREPRISES
+    # --------------------------------------------------------
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS entreprises (
@@ -24,12 +40,19 @@ def initialize_database():
     """)
 
     try:
+
         cursor.execute("""
             ALTER TABLE entreprises
             ADD COLUMN solde_initial REAL DEFAULT 0
         """)
+
     except sqlite3.OperationalError:
+
         pass
+
+    # --------------------------------------------------------
+    # UTILISATEURS / ADMINISTRATEURS
+    # --------------------------------------------------------
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS utilisateurs (
@@ -38,10 +61,52 @@ def initialize_database():
             email TEXT UNIQUE NOT NULL,
             mot_de_passe TEXT NOT NULL,
             entreprise_id INTEGER,
+            role TEXT DEFAULT 'admin',
+            actif INTEGER DEFAULT 1,
+            date_creation TEXT,
             FOREIGN KEY (entreprise_id)
             REFERENCES entreprises(id)
         )
     """)
+
+    # Ajouter les nouvelles colonnes aux anciennes bases
+
+    try:
+
+        cursor.execute("""
+            ALTER TABLE utilisateurs
+            ADD COLUMN role TEXT DEFAULT 'admin'
+        """)
+
+    except sqlite3.OperationalError:
+
+        pass
+
+    try:
+
+        cursor.execute("""
+            ALTER TABLE utilisateurs
+            ADD COLUMN actif INTEGER DEFAULT 1
+        """)
+
+    except sqlite3.OperationalError:
+
+        pass
+
+    try:
+
+        cursor.execute("""
+            ALTER TABLE utilisateurs
+            ADD COLUMN date_creation TEXT
+        """)
+
+    except sqlite3.OperationalError:
+
+        pass
+
+    # --------------------------------------------------------
+    # RECETTES
+    # --------------------------------------------------------
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS recettes (
@@ -57,6 +122,10 @@ def initialize_database():
             REFERENCES entreprises(id)
         )
     """)
+
+    # --------------------------------------------------------
+    # DEPENSES
+    # --------------------------------------------------------
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS depenses (
@@ -78,7 +147,194 @@ def initialize_database():
 
 
 # ============================================================
+# SECURITE MOT DE PASSE
+# ============================================================
+
+def hasher_mot_de_passe(mot_de_passe):
+
+    return hashlib.sha256(
+        mot_de_passe.encode("utf-8")
+    ).hexdigest()
+
+
+# ============================================================
 # ENTREPRISE
+# ============================================================
+
+def creer_entreprise(
+    nom,
+    secteur,
+    adresse,
+    telephone,
+    email,
+    devise="FCFA"
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        INSERT INTO entreprises (
+            nom,
+            secteur,
+            adresse,
+            telephone,
+            email,
+            devise,
+            solde_initial
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        nom,
+        secteur,
+        adresse,
+        telephone,
+        email,
+        devise,
+        0
+    ))
+
+    entreprise_id = cursor.lastrowid
+
+    connection.commit()
+    connection.close()
+
+    return entreprise_id
+
+
+# ============================================================
+# ADMINISTRATEUR
+# ============================================================
+
+def email_existe(email):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT id
+        FROM utilisateurs
+        WHERE LOWER(email) = LOWER(?)
+    """, (email.strip(),))
+
+    resultat = cursor.fetchone()
+
+    connection.close()
+
+    return resultat is not None
+
+
+def creer_administrateur(
+    nom,
+    email,
+    mot_de_passe,
+    entreprise_id
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    mot_de_passe_hash = hasher_mot_de_passe(
+        mot_de_passe
+    )
+
+    date_creation = datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    cursor.execute("""
+        INSERT INTO utilisateurs (
+            nom,
+            email,
+            mot_de_passe,
+            entreprise_id,
+            role,
+            actif,
+            date_creation
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        nom,
+        email.strip().lower(),
+        mot_de_passe_hash,
+        entreprise_id,
+        "admin",
+        1,
+        date_creation
+    ))
+
+    utilisateur_id = cursor.lastrowid
+
+    connection.commit()
+    connection.close()
+
+    return utilisateur_id
+
+
+def authentifier_utilisateur(
+    email,
+    mot_de_passe
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    mot_de_passe_hash = hasher_mot_de_passe(
+        mot_de_passe
+    )
+
+    cursor.execute("""
+        SELECT
+            id,
+            nom,
+            email,
+            entreprise_id,
+            role
+        FROM utilisateurs
+        WHERE LOWER(email) = LOWER(?)
+        AND mot_de_passe = ?
+        AND actif = 1
+    """, (
+        email.strip(),
+        mot_de_passe_hash
+    ))
+
+    utilisateur = cursor.fetchone()
+
+    connection.close()
+
+    return utilisateur
+
+
+def obtenir_utilisateur(
+    utilisateur_id
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT
+            id,
+            nom,
+            email,
+            entreprise_id,
+            role,
+            actif,
+            date_creation
+        FROM utilisateurs
+        WHERE id = ?
+    """, (utilisateur_id,))
+
+    utilisateur = cursor.fetchone()
+
+    connection.close()
+
+    return utilisateur
+
+
+# ============================================================
+# ENTREPRISE PAR DEFAUT
 # ============================================================
 
 def obtenir_entreprise_par_defaut():
