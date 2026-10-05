@@ -23,6 +23,14 @@ def initialize_database():
         )
     """)
 
+    try:
+        cursor.execute("""
+            ALTER TABLE entreprises
+            ADD COLUMN solde_initial REAL DEFAULT 0
+        """)
+    except sqlite3.OperationalError:
+        pass
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS utilisateurs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,27 +59,62 @@ def initialize_database():
     """)
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS entreprises (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nom TEXT NOT NULL,
-        secteur TEXT,
-        adresse TEXT,
-        telephone TEXT,
-        email TEXT,
-        devise TEXT DEFAULT 'FCFA',
-        solde_initial REAL DEFAULT 0
-    )
-""")
-    try:
-        cursor.execute("""
-            ALTER TABLE entreprises
-            ADD COLUMN solde_initial REAL DEFAULT 0
-        """)
-    except sqlite3.OperationalError:
-        pass
+        CREATE TABLE IF NOT EXISTS depenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entreprise_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            montant REAL NOT NULL,
+            categorie TEXT NOT NULL,
+            beneficiaire TEXT,
+            moyen_paiement TEXT,
+            description TEXT,
+            FOREIGN KEY (entreprise_id)
+            REFERENCES entreprises(id)
+        )
+    """)
 
     connection.commit()
     connection.close()
+
+
+def obtenir_entreprise_par_defaut():
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT id
+        FROM entreprises
+        ORDER BY id
+        LIMIT 1
+    """)
+
+    entreprise = cursor.fetchone()
+
+    if entreprise:
+        connection.close()
+        return entreprise[0]
+
+    cursor.execute("""
+        INSERT INTO entreprises (
+            nom,
+            secteur,
+            devise,
+            solde_initial
+        )
+        VALUES (?, ?, ?, ?)
+    """, (
+        "Mon entreprise",
+        "À définir",
+        "FCFA",
+        0
+    ))
+
+    entreprise_id = cursor.lastrowid
+
+    connection.commit()
+    connection.close()
+
+    return entreprise_id
 
 
 def ajouter_recette(
@@ -198,39 +241,6 @@ def recuperer_depenses(entreprise_id):
     return depenses
 
 
-def obtenir_entreprise_par_defaut():
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT id
-        FROM entreprises
-        ORDER BY id
-        LIMIT 1
-    """)
-
-    entreprise = cursor.fetchone()
-
-    if entreprise:
-        connection.close()
-        return entreprise[0]
-
-    cursor.execute("""
-        INSERT INTO entreprises (
-            nom,
-            secteur,
-            devise
-        )
-        VALUES (?, ?, ?)
-    """, (
-        "Mon entreprise",
-        "À définir",
-        "FCFA"
-    ))
-
-    entreprise_id = cursor.lastrowid
-
-    connection.commit()
 def calculer_total_recettes(entreprise_id):
     connection = get_connection()
     cursor = connection.cursor()
@@ -263,6 +273,8 @@ def calculer_total_depenses(entreprise_id):
     connection.close()
 
     return total
+
+
 def obtenir_solde_initial(entreprise_id):
     connection = get_connection()
     cursor = connection.cursor()
@@ -294,5 +306,4 @@ def modifier_solde_initial(entreprise_id, montant):
     """, (montant, entreprise_id))
 
     connection.commit()
-    connection.close()
     connection.close()
