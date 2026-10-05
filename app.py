@@ -1,4 +1,5 @@
 import streamlit as st
+from database import initialize_database
 
 # --------------------------------------------------
 # CONFIGURATION
@@ -10,6 +11,12 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# --------------------------------------------------
+# INITIALISATION DE LA BASE DE DONNÉES
+# --------------------------------------------------
+
+initialize_database()
 
 # --------------------------------------------------
 # STYLE
@@ -113,8 +120,6 @@ if menu == "📊 Tableau de bord":
         unsafe_allow_html=True
     )
 
-    # Indicateurs principaux
-
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -161,8 +166,6 @@ if menu == "📊 Tableau de bord":
             unsafe_allow_html=True
         )
 
-    # Section graphique
-
     st.markdown(
         '<div class="section-title">Évolution financière</div>',
         unsafe_allow_html=True
@@ -177,22 +180,8 @@ if menu == "📊 Tableau de bord":
             "Septembre",
             "Octobre"
         ],
-        "Recettes": [
-            0,
-            0,
-            0,
-            0,
-            0,
-            0
-        ],
-        "Dépenses": [
-            0,
-            0,
-            0,
-            0,
-            0,
-            0
-        ]
+        "Recettes": [0, 0, 0, 0, 0, 0],
+        "Dépenses": [0, 0, 0, 0, 0, 0]
     }
 
     st.line_chart(
@@ -200,8 +189,6 @@ if menu == "📊 Tableau de bord":
         x="Mois",
         y=["Recettes", "Dépenses"]
     )
-
-    # Dernières transactions
 
     st.markdown(
         '<div class="section-title">Dernières transactions</div>',
@@ -222,7 +209,7 @@ elif menu == "💰 Recettes":
     st.title("💰 Recettes")
 
     st.info(
-        "Le module de gestion des recettes sera développé dans la prochaine étape."
+        "Le module de gestion des recettes sera développé prochainement."
     )
 
 
@@ -235,7 +222,7 @@ elif menu == "💸 Dépenses":
     st.title("💸 Dépenses")
 
     st.info(
-        "Le module de gestion des dépenses sera développé dans la prochaine étape."
+        "Le module de gestion des dépenses sera développé prochainement."
     )
 
 
