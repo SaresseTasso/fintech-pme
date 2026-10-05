@@ -51,19 +51,24 @@ def initialize_database():
     """)
 
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS depenses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            entreprise_id INTEGER NOT NULL,
-            date TEXT NOT NULL,
-            montant REAL NOT NULL,
-            categorie TEXT NOT NULL,
-            beneficiaire TEXT,
-            moyen_paiement TEXT,
-            description TEXT,
-            FOREIGN KEY (entreprise_id)
-            REFERENCES entreprises(id)
-        )
-    """)
+    CREATE TABLE IF NOT EXISTS entreprises (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nom TEXT NOT NULL,
+        secteur TEXT,
+        adresse TEXT,
+        telephone TEXT,
+        email TEXT,
+        devise TEXT DEFAULT 'FCFA',
+        solde_initial REAL DEFAULT 0
+    )
+""")
+    try:
+        cursor.execute("""
+            ALTER TABLE entreprises
+            ADD COLUMN solde_initial REAL DEFAULT 0
+        """)
+    except sqlite3.OperationalError:
+        pass
 
     connection.commit()
     connection.close()
@@ -258,6 +263,36 @@ def calculer_total_depenses(entreprise_id):
     connection.close()
 
     return total
+def obtenir_solde_initial(entreprise_id):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT solde_initial
+        FROM entreprises
+        WHERE id = ?
+    """, (entreprise_id,))
+
+    resultat = cursor.fetchone()
+
     connection.close()
 
-    return entreprise_id
+    if resultat and resultat[0] is not None:
+        return resultat[0]
+
+    return 0
+
+
+def modifier_solde_initial(entreprise_id, montant):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        UPDATE entreprises
+        SET solde_initial = ?
+        WHERE id = ?
+    """, (montant, entreprise_id))
+
+    connection.commit()
+    connection.close()
+    connection.close()
