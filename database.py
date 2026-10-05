@@ -77,6 +77,10 @@ def initialize_database():
     connection.close()
 
 
+# ============================================================
+# ENTREPRISE
+# ============================================================
+
 def obtenir_entreprise_par_defaut():
     connection = get_connection()
     cursor = connection.cursor()
@@ -116,6 +120,10 @@ def obtenir_entreprise_par_defaut():
 
     return entreprise_id
 
+
+# ============================================================
+# RECETTES
+# ============================================================
 
 def ajouter_recette(
     entreprise_id,
@@ -179,6 +187,88 @@ def recuperer_recettes(entreprise_id):
     return recettes
 
 
+def obtenir_recette(recette_id, entreprise_id):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT
+            id,
+            date,
+            montant,
+            categorie,
+            source,
+            moyen_paiement,
+            description
+        FROM recettes
+        WHERE id = ?
+        AND entreprise_id = ?
+    """, (recette_id, entreprise_id))
+
+    recette = cursor.fetchone()
+
+    connection.close()
+
+    return recette
+
+
+def modifier_recette(
+    recette_id,
+    entreprise_id,
+    date,
+    montant,
+    categorie,
+    source,
+    moyen_paiement,
+    description
+):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        UPDATE recettes
+        SET
+            date = ?,
+            montant = ?,
+            categorie = ?,
+            source = ?,
+            moyen_paiement = ?,
+            description = ?
+        WHERE id = ?
+        AND entreprise_id = ?
+    """, (
+        date,
+        montant,
+        categorie,
+        source,
+        moyen_paiement,
+        description,
+        recette_id,
+        entreprise_id
+    ))
+
+    connection.commit()
+    connection.close()
+
+
+def supprimer_recette(recette_id, entreprise_id):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        DELETE FROM recettes
+        WHERE id = ?
+        AND entreprise_id = ?
+    """, (recette_id, entreprise_id))
+
+    connection.commit()
+    connection.close()
+
+
+# ============================================================
+# DEPENSES
+# ============================================================
+
 def ajouter_depense(
     entreprise_id,
     date,
@@ -240,6 +330,88 @@ def recuperer_depenses(entreprise_id):
 
     return depenses
 
+
+def obtenir_depense(depense_id, entreprise_id):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT
+            id,
+            date,
+            montant,
+            categorie,
+            beneficiaire,
+            moyen_paiement,
+            description
+        FROM depenses
+        WHERE id = ?
+        AND entreprise_id = ?
+    """, (depense_id, entreprise_id))
+
+    depense = cursor.fetchone()
+
+    connection.close()
+
+    return depense
+
+
+def modifier_depense(
+    depense_id,
+    entreprise_id,
+    date,
+    montant,
+    categorie,
+    beneficiaire,
+    moyen_paiement,
+    description
+):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        UPDATE depenses
+        SET
+            date = ?,
+            montant = ?,
+            categorie = ?,
+            beneficiaire = ?,
+            moyen_paiement = ?,
+            description = ?
+        WHERE id = ?
+        AND entreprise_id = ?
+    """, (
+        date,
+        montant,
+        categorie,
+        beneficiaire,
+        moyen_paiement,
+        description,
+        depense_id,
+        entreprise_id
+    ))
+
+    connection.commit()
+    connection.close()
+
+
+def supprimer_depense(depense_id, entreprise_id):
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        DELETE FROM depenses
+        WHERE id = ?
+        AND entreprise_id = ?
+    """, (depense_id, entreprise_id))
+
+    connection.commit()
+    connection.close()
+
+
+# ============================================================
+# CALCULS FINANCIERS
+# ============================================================
 
 def calculer_total_recettes(entreprise_id):
     connection = get_connection()
