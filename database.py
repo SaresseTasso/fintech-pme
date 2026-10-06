@@ -1,820 +1,386 @@
 import sqlite3
 import hashlib
+import hmac
+import secrets
+from contextlib import contextmanager
 from datetime import datetime
 
-
 DATABASE_NAME = "fintech_pme.db"
+PBKDF2_ITERATIONS = 200_000
+
+# Table -> nom de la colonne "tiers" (liste blanche, évite toute injection)
+TABLES = {
+    "recettes": "source",
+    "depenses": "beneficiaire",
+}
 
 
 # ============================================================
 # CONNEXION
 # ============================================================
 
-def get_connection():
-    return sqlite3.connect(DATABASE_NAME)
+@contextmanager
+def connexion():
+    """Ouvre une connexion, commit si tout va bien, rollback sinon."""
+    conn = sqlite3.connect(DATABASE_NAME)
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def _verifier_table(table):
+    if table not in TABLES:
+        raise ValueError(f"Table inconnue : {table}")
+    return TABLES[table]
+
+
+def _ajouter_colonne(cur, table, colonne, definition):
+    colonnes = [r[1] for r in cur.execute(f"PRAGMA table_info({table})")]
+    if colonne not in colonnes:
+        cur.execute(f"ALTER TABLE {table} ADD COLUMN {colonne} {definition}")
 
 
 # ============================================================
-# INITIALISATION DE LA BASE
+# INITIALISATION
 # ============================================================
 
 def initialize_database():
+    with connexion() as conn:
+        cur = conn.cursor()
 
-    connection = get_connection()
-    cursor = connection.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS entreprises (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nom TEXT NOT NULL,
+                secteur TEXT,
+                adresse TEXT,
+                telephone TEXT,
+                email TEXT,
+                devise TEXT DEFAULT 'FCFA',
+                solde_initial REAL DEFAULT 0
+            )
+        """)
+        _ajouter_colonne(cur, "entreprises", "solde_initial", "REAL DEFAULT 0")
 
-    # --------------------------------------------------------
-    # ENTREPRISES
-    # --------------------------------------------------------
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS utilisateurs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nom TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                mot_de_passe TEXT NOT NULL,
+                entreprise_id INTEGER,
+                role TEXT DEFAULT 'admin',
+                actif INTEGER DEFAULT 1,
+                date_creation TEXT,
+                FOREIGN KEY (entreprise_id) REFERENCES entreprises(id)
+            )
+        """)
+        _ajouter_colonne(cur, "utilisateurs", "role", "TEXT DEFAULT 'admin'")
+        _ajouter_colonne(cur, "utilisateurs", "actif", "INTEGER DEFAULT 1")
+        _ajouter_colonne(cur, "utilisateurs", "date_creation", "TEXT")
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS entreprises (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nom TEXT NOT NULL,
-            secteur TEXT,
-            adresse TEXT,
-            telephone TEXT,
-            email TEXT,
-            devise TEXT DEFAULT 'FCFA'
-        )
-    """)
-
-    try:
-
-        cursor.execute("""
-            ALTER TABLE entreprises
-            ADD COLUMN solde_initial REAL DEFAULT 0
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS recettes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entreprise_id INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                montant REAL NOT NULL CHECK (montant > 0),
+                categorie TEXT NOT NULL,
+                source TEXT,
+                moyen_paiement TEXT,
+                description TEXT,
+                FOREIGN KEY (entreprise_id) REFERENCES entreprises(id)
+            )
         """)
 
-    except sqlite3.OperationalError:
-
-        pass
-    # ============================================================
-# CREATION D'ENTREPRISE
-# ============================================================
-
-def creer_entreprise(
-    nom,
-    secteur,
-    devise="FCFA",
-    solde_initial=0
-):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        INSERT INTO entreprises (
-            nom,
-            secteur,
-            devise,
-            solde_initial
-        )
-        VALUES (?, ?, ?, ?)
-    """, (
-        nom,
-        secteur,
-        devise,
-        solde_initial
-    ))
-
-    entreprise_id = cursor.lastrowid
-
-    connection.commit()
-    connection.close()
-
-    return entreprise_id
-
-    # --------------------------------------------------------
-    # UTILISATEURS / ADMINISTRATEURS
-    # --------------------------------------------------------
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS utilisateurs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nom TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            mot_de_passe TEXT NOT NULL,
-            entreprise_id INTEGER,
-            role TEXT DEFAULT 'admin',
-            actif INTEGER DEFAULT 1,
-            date_creation TEXT,
-            FOREIGN KEY (entreprise_id)
-            REFERENCES entreprises(id)
-        )
-    """)
-
-    # Ajouter les nouvelles colonnes aux anciennes bases
-
-    try:
-
-        cursor.execute("""
-            ALTER TABLE utilisateurs
-            ADD COLUMN role TEXT DEFAULT 'admin'
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS depenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entreprise_id INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                montant REAL NOT NULL CHECK (montant > 0),
+                categorie TEXT NOT NULL,
+                beneficiaire TEXT,
+                moyen_paiement TEXT,
+                description TEXT,
+                FOREIGN KEY (entreprise_id) REFERENCES entreprises(id)
+            )
         """)
 
-    except sqlite3.OperationalError:
-
-        pass
-
-    try:
-
-        cursor.execute("""
-            ALTER TABLE utilisateurs
-            ADD COLUMN actif INTEGER DEFAULT 1
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_recettes_ent_date
+            ON recettes (entreprise_id, date)
         """)
-
-    except sqlite3.OperationalError:
-
-        pass
-
-    try:
-
-        cursor.execute("""
-            ALTER TABLE utilisateurs
-            ADD COLUMN date_creation TEXT
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_depenses_ent_date
+            ON depenses (entreprise_id, date)
         """)
-
-    except sqlite3.OperationalError:
-
-        pass
-
-    # --------------------------------------------------------
-    # RECETTES
-    # --------------------------------------------------------
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS recettes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            entreprise_id INTEGER NOT NULL,
-            date TEXT NOT NULL,
-            montant REAL NOT NULL,
-            categorie TEXT NOT NULL,
-            source TEXT,
-            moyen_paiement TEXT,
-            description TEXT,
-            FOREIGN KEY (entreprise_id)
-            REFERENCES entreprises(id)
-        )
-    """)
-
-    # --------------------------------------------------------
-    # DEPENSES
-    # --------------------------------------------------------
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS depenses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            entreprise_id INTEGER NOT NULL,
-            date TEXT NOT NULL,
-            montant REAL NOT NULL,
-            categorie TEXT NOT NULL,
-            beneficiaire TEXT,
-            moyen_paiement TEXT,
-            description TEXT,
-            FOREIGN KEY (entreprise_id)
-            REFERENCES entreprises(id)
-        )
-    """)
-
-    connection.commit()
-    connection.close()
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_utilisateurs_email
+            ON utilisateurs (LOWER(email))
+        """)
 
 
 # ============================================================
-# SECURITE MOT DE PASSE
+# MOTS DE PASSE (PBKDF2 + sel aléatoire)
 # ============================================================
 
 def hasher_mot_de_passe(mot_de_passe):
+    sel = secrets.token_bytes(16)
+    empreinte = hashlib.pbkdf2_hmac(
+        "sha256", mot_de_passe.encode("utf-8"), sel, PBKDF2_ITERATIONS
+    )
+    return f"pbkdf2${PBKDF2_ITERATIONS}${sel.hex()}${empreinte.hex()}"
 
-    return hashlib.sha256(
-        mot_de_passe.encode("utf-8")
-    ).hexdigest()
 
+def verifier_mot_de_passe(mot_de_passe, stocke):
+    """Vérifie le nouveau format et l'ancien SHA-256 (migration)."""
+    if stocke.startswith("pbkdf2$"):
+        try:
+            _, iterations, sel, empreinte = stocke.split("$")
+            calcule = hashlib.pbkdf2_hmac(
+                "sha256",
+                mot_de_passe.encode("utf-8"),
+                bytes.fromhex(sel),
+                int(iterations),
+            )
+            return hmac.compare_digest(calcule.hex(), empreinte)
+        except (ValueError, TypeError):
+            return False
 
-# ============================================================
-# ENTREPRISE
-# ============================================================
-
-def creer_entreprise(
-    nom,
-    secteur,
-    adresse,
-    telephone,
-    email,
-    devise="FCFA"
-):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        INSERT INTO entreprises (
-            nom,
-            secteur,
-            adresse,
-            telephone,
-            email,
-            devise,
-            solde_initial
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        nom,
-        secteur,
-        adresse,
-        telephone,
-        email,
-        devise,
-        0
-    ))
-
-    entreprise_id = cursor.lastrowid
-
-    connection.commit()
-    connection.close()
-
-    return entreprise_id
+    ancien = hashlib.sha256(mot_de_passe.encode("utf-8")).hexdigest()
+    return hmac.compare_digest(ancien, stocke)
 
 
 # ============================================================
-# ADMINISTRATEUR
+# UTILISATEURS / INSCRIPTION
 # ============================================================
 
 def email_existe(email):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT id
-        FROM utilisateurs
-        WHERE LOWER(email) = LOWER(?)
-    """, (email.strip(),))
-
-    resultat = cursor.fetchone()
-
-    connection.close()
-
+    with connexion() as conn:
+        resultat = conn.execute(
+            "SELECT id FROM utilisateurs WHERE LOWER(email) = LOWER(?)",
+            (email.strip(),),
+        ).fetchone()
     return resultat is not None
 
 
-def creer_administrateur(
-    nom,
-    email,
+def inscrire_administrateur(
+    nom_admin,
+    email_admin,
     mot_de_passe,
-    entreprise_id
+    nom_entreprise,
+    secteur="",
+    adresse="",
+    telephone="",
+    email_entreprise="",
 ):
+    """Crée l'entreprise ET l'administrateur dans une seule transaction.
+    Lève ValueError si l'e-mail existe déjà."""
+    email_admin = email_admin.strip().lower()
+    date_creation = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    connection = get_connection()
-    cursor = connection.cursor()
+    try:
+        with connexion() as conn:
+            cur = conn.cursor()
 
-    mot_de_passe_hash = hasher_mot_de_passe(
-        mot_de_passe
-    )
+            cur.execute(
+                "SELECT id FROM utilisateurs WHERE LOWER(email) = ?",
+                (email_admin,),
+            )
+            if cur.fetchone():
+                raise ValueError("email_existant")
 
-    date_creation = datetime.now().strftime(
-        "%Y-%m-%d %H:%M:%S"
-    )
+            cur.execute("""
+                INSERT INTO entreprises
+                    (nom, secteur, adresse, telephone, email, devise, solde_initial)
+                VALUES (?, ?, ?, ?, ?, 'FCFA', 0)
+            """, (nom_entreprise, secteur, adresse, telephone, email_entreprise))
+            entreprise_id = cur.lastrowid
 
-    cursor.execute("""
-        INSERT INTO utilisateurs (
-            nom,
-            email,
-            mot_de_passe,
-            entreprise_id,
-            role,
-            actif,
-            date_creation
+            cur.execute("""
+                INSERT INTO utilisateurs
+                    (nom, email, mot_de_passe, entreprise_id, role, actif, date_creation)
+                VALUES (?, ?, ?, ?, 'admin', 1, ?)
+            """, (
+                nom_admin,
+                email_admin,
+                hasher_mot_de_passe(mot_de_passe),
+                entreprise_id,
+                date_creation,
+            ))
+            return cur.lastrowid
+    except sqlite3.IntegrityError:
+        raise ValueError("email_existant")
+
+
+def authentifier_utilisateur(email, mot_de_passe):
+    """Retourne (id, nom, email, entreprise_id, role) ou None."""
+    with connexion() as conn:
+        ligne = conn.execute("""
+            SELECT id, nom, email, entreprise_id, role, mot_de_passe
+            FROM utilisateurs
+            WHERE LOWER(email) = LOWER(?) AND actif = 1
+        """, (email.strip(),)).fetchone()
+
+        if ligne is None:
+            return None
+
+        stocke = ligne[5]
+        if not verifier_mot_de_passe(mot_de_passe, stocke):
+            return None
+
+        # Migration automatique des anciens hachages SHA-256
+        if not stocke.startswith("pbkdf2$"):
+            conn.execute(
+                "UPDATE utilisateurs SET mot_de_passe = ? WHERE id = ?",
+                (hasher_mot_de_passe(mot_de_passe), ligne[0]),
+            )
+
+    return ligne[:5]
+
+
+def obtenir_utilisateur(utilisateur_id):
+    """Retourne (id, nom, email, entreprise_id, role, actif, date_creation)."""
+    with connexion() as conn:
+        return conn.execute("""
+            SELECT id, nom, email, entreprise_id, role, actif, date_creation
+            FROM utilisateurs
+            WHERE id = ?
+        """, (utilisateur_id,)).fetchone()
+
+
+def changer_mot_de_passe(utilisateur_id, ancien, nouveau):
+    with connexion() as conn:
+        ligne = conn.execute(
+            "SELECT mot_de_passe FROM utilisateurs WHERE id = ?",
+            (utilisateur_id,),
+        ).fetchone()
+
+        if ligne is None or not verifier_mot_de_passe(ancien, ligne[0]):
+            return False
+
+        conn.execute(
+            "UPDATE utilisateurs SET mot_de_passe = ? WHERE id = ?",
+            (hasher_mot_de_passe(nouveau), utilisateur_id),
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        nom,
-        email.strip().lower(),
-        mot_de_passe_hash,
-        entreprise_id,
-        "admin",
-        1,
-        date_creation
-    ))
-
-    utilisateur_id = cursor.lastrowid
-
-    connection.commit()
-    connection.close()
-
-    return utilisateur_id
-
-
-def authentifier_utilisateur(
-    email,
-    mot_de_passe
-):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    mot_de_passe_hash = hasher_mot_de_passe(
-        mot_de_passe
-    )
-
-    cursor.execute("""
-        SELECT
-            id,
-            nom,
-            email,
-            entreprise_id,
-            role
-        FROM utilisateurs
-        WHERE LOWER(email) = LOWER(?)
-        AND mot_de_passe = ?
-        AND actif = 1
-    """, (
-        email.strip(),
-        mot_de_passe_hash
-    ))
-
-    utilisateur = cursor.fetchone()
-
-    connection.close()
-
-    return utilisateur
-
-
-def obtenir_utilisateur(
-    utilisateur_id
-):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT
-            id,
-            nom,
-            email,
-            entreprise_id,
-            role,
-            actif,
-            date_creation
-        FROM utilisateurs
-        WHERE id = ?
-    """, (utilisateur_id,))
-
-    utilisateur = cursor.fetchone()
-
-    connection.close()
-
-    return utilisateur
+    return True
 
 
 # ============================================================
-# ENTREPRISE PAR DEFAUT
+# TRANSACTIONS (recettes / dépenses)
+# Colonnes retournées : id, date, montant, categorie, tiers,
+#                       moyen_paiement, description
 # ============================================================
 
-def obtenir_entreprise_par_defaut():
+def ajouter_transaction(
+    table, entreprise_id, date, montant, categorie,
+    tiers, moyen_paiement, description
+):
+    col = _verifier_table(table)
+    with connexion() as conn:
+        conn.execute(f"""
+            INSERT INTO {table}
+                (entreprise_id, date, montant, categorie, {col},
+                 moyen_paiement, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (entreprise_id, date, montant, categorie,
+              tiers, moyen_paiement, description))
 
-    connection = get_connection()
-    cursor = connection.cursor()
 
-    cursor.execute("""
-        SELECT id
-        FROM entreprises
-        ORDER BY id
-        LIMIT 1
-    """)
+def lister_transactions(table, entreprise_id):
+    col = _verifier_table(table)
+    with connexion() as conn:
+        return conn.execute(f"""
+            SELECT id, date, montant, categorie, {col},
+                   moyen_paiement, description
+            FROM {table}
+            WHERE entreprise_id = ?
+            ORDER BY date DESC, id DESC
+        """, (entreprise_id,)).fetchall()
 
-    entreprise = cursor.fetchone()
 
-    if entreprise:
+def obtenir_transaction(table, transaction_id, entreprise_id):
+    col = _verifier_table(table)
+    with connexion() as conn:
+        return conn.execute(f"""
+            SELECT id, date, montant, categorie, {col},
+                   moyen_paiement, description
+            FROM {table}
+            WHERE id = ? AND entreprise_id = ?
+        """, (transaction_id, entreprise_id)).fetchone()
 
-        connection.close()
 
-        return entreprise[0]
+def modifier_transaction(
+    table, transaction_id, entreprise_id, date, montant,
+    categorie, tiers, moyen_paiement, description
+):
+    """Retourne True si une ligne a été modifiée."""
+    col = _verifier_table(table)
+    with connexion() as conn:
+        cur = conn.execute(f"""
+            UPDATE {table}
+            SET date = ?, montant = ?, categorie = ?, {col} = ?,
+                moyen_paiement = ?, description = ?
+            WHERE id = ? AND entreprise_id = ?
+        """, (date, montant, categorie, tiers, moyen_paiement,
+              description, transaction_id, entreprise_id))
+        return cur.rowcount > 0
 
-    cursor.execute("""
-        INSERT INTO entreprises (
-            nom,
-            secteur,
-            devise,
-            solde_initial
+
+def supprimer_transaction(table, transaction_id, entreprise_id):
+    """Retourne True si une ligne a été supprimée."""
+    _verifier_table(table)
+    with connexion() as conn:
+        cur = conn.execute(
+            f"DELETE FROM {table} WHERE id = ? AND entreprise_id = ?",
+            (transaction_id, entreprise_id),
         )
-        VALUES (?, ?, ?, ?)
-    """, (
-        "Mon entreprise",
-        "À définir",
-        "FCFA",
-        0
-    ))
+        return cur.rowcount > 0
 
-    entreprise_id = cursor.lastrowid
 
-    connection.commit()
-    connection.close()
-
-    return entreprise_id
+def calculer_total(table, entreprise_id):
+    _verifier_table(table)
+    with connexion() as conn:
+        return conn.execute(
+            f"SELECT COALESCE(SUM(montant), 0) FROM {table} WHERE entreprise_id = ?",
+            (entreprise_id,),
+        ).fetchone()[0]
 
 
 # ============================================================
-# RECETTES
+# TRÉSORERIE
 # ============================================================
-
-def ajouter_recette(
-    entreprise_id,
-    date,
-    montant,
-    categorie,
-    source,
-    moyen_paiement,
-    description
-):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        INSERT INTO recettes (
-            entreprise_id,
-            date,
-            montant,
-            categorie,
-            source,
-            moyen_paiement,
-            description
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        entreprise_id,
-        date,
-        montant,
-        categorie,
-        source,
-        moyen_paiement,
-        description
-    ))
-
-    connection.commit()
-    connection.close()
-
-
-def recuperer_recettes(entreprise_id):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT
-            id,
-            date,
-            montant,
-            categorie,
-            source,
-            moyen_paiement,
-            description
-        FROM recettes
-        WHERE entreprise_id = ?
-        ORDER BY date DESC, id DESC
-    """, (entreprise_id,))
-
-    recettes = cursor.fetchall()
-
-    connection.close()
-
-    return recettes
-
-
-def obtenir_recette(
-    recette_id,
-    entreprise_id
-):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT
-            id,
-            date,
-            montant,
-            categorie,
-            source,
-            moyen_paiement,
-            description
-        FROM recettes
-        WHERE id = ?
-        AND entreprise_id = ?
-    """, (
-        recette_id,
-        entreprise_id
-    ))
-
-    recette = cursor.fetchone()
-
-    connection.close()
-
-    return recette
-
-
-def modifier_recette(
-    recette_id,
-    entreprise_id,
-    date,
-    montant,
-    categorie,
-    source,
-    moyen_paiement,
-    description
-):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        UPDATE recettes
-        SET
-            date = ?,
-            montant = ?,
-            categorie = ?,
-            source = ?,
-            moyen_paiement = ?,
-            description = ?
-        WHERE id = ?
-        AND entreprise_id = ?
-    """, (
-        date,
-        montant,
-        categorie,
-        source,
-        moyen_paiement,
-        description,
-        recette_id,
-        entreprise_id
-    ))
-
-    connection.commit()
-    connection.close()
-
-
-def supprimer_recette(
-    recette_id,
-    entreprise_id
-):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        DELETE FROM recettes
-        WHERE id = ?
-        AND entreprise_id = ?
-    """, (
-        recette_id,
-        entreprise_id
-    ))
-
-    connection.commit()
-    connection.close()
-
-
-# ============================================================
-# DEPENSES
-# ============================================================
-
-def ajouter_depense(
-    entreprise_id,
-    date,
-    montant,
-    categorie,
-    beneficiaire,
-    moyen_paiement,
-    description
-):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        INSERT INTO depenses (
-            entreprise_id,
-            date,
-            montant,
-            categorie,
-            beneficiaire,
-            moyen_paiement,
-            description
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        entreprise_id,
-        date,
-        montant,
-        categorie,
-        beneficiaire,
-        moyen_paiement,
-        description
-    ))
-
-    connection.commit()
-    connection.close()
-
-
-def recuperer_depenses(entreprise_id):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT
-            id,
-            date,
-            montant,
-            categorie,
-            beneficiaire,
-            moyen_paiement,
-            description
-        FROM depenses
-        WHERE entreprise_id = ?
-        ORDER BY date DESC, id DESC
-    """, (entreprise_id,))
-
-    depenses = cursor.fetchall()
-
-    connection.close()
-
-    return depenses
-
-
-def obtenir_depense(
-    depense_id,
-    entreprise_id
-):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT
-            id,
-            date,
-            montant,
-            categorie,
-            beneficiaire,
-            moyen_paiement,
-            description
-        FROM depenses
-        WHERE id = ?
-        AND entreprise_id = ?
-    """, (
-        depense_id,
-        entreprise_id
-    ))
-
-    depense = cursor.fetchone()
-
-    connection.close()
-
-    return depense
-
-
-def modifier_depense(
-    depense_id,
-    entreprise_id,
-    date,
-    montant,
-    categorie,
-    beneficiaire,
-    moyen_paiement,
-    description
-):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        UPDATE depenses
-        SET
-            date = ?,
-            montant = ?,
-            categorie = ?,
-            beneficiaire = ?,
-            moyen_paiement = ?,
-            description = ?
-        WHERE id = ?
-        AND entreprise_id = ?
-    """, (
-        date,
-        montant,
-        categorie,
-        beneficiaire,
-        moyen_paiement,
-        description,
-        depense_id,
-        entreprise_id
-    ))
-
-    connection.commit()
-    connection.close()
-
-
-def supprimer_depense(
-    depense_id,
-    entreprise_id
-):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        DELETE FROM depenses
-        WHERE id = ?
-        AND entreprise_id = ?
-    """, (
-        depense_id,
-        entreprise_id
-    ))
-
-    connection.commit()
-    connection.close()
-
-
-# ============================================================
-# CALCULS
-# ============================================================
-
-def calculer_total_recettes(entreprise_id):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT COALESCE(SUM(montant), 0)
-        FROM recettes
-        WHERE entreprise_id = ?
-    """, (entreprise_id,))
-
-    total = cursor.fetchone()[0]
-
-    connection.close()
-
-    return total
-
-
-def calculer_total_depenses(entreprise_id):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT COALESCE(SUM(montant), 0)
-        FROM depenses
-        WHERE entreprise_id = ?
-    """, (entreprise_id,))
-
-    total = cursor.fetchone()[0]
-
-    connection.close()
-
-    return total
-
 
 def obtenir_solde_initial(entreprise_id):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    cursor.execute("""
-        SELECT solde_initial
-        FROM entreprises
-        WHERE id = ?
-    """, (entreprise_id,))
-
-    resultat = cursor.fetchone()
-
-    connection.close()
-
+    with connexion() as conn:
+        resultat = conn.execute(
+            "SELECT solde_initial FROM entreprises WHERE id = ?",
+            (entreprise_id,),
+        ).fetchone()
     if resultat and resultat[0] is not None:
-
         return resultat[0]
-
     return 0
 
 
-def modifier_solde_initial(
-    entreprise_id,
-    montant
-):
+def modifier_solde_initial(entreprise_id, montant):
+    with connexion() as conn:
+        conn.execute(
+            "UPDATE entreprises SET solde_initial = ? WHERE id = ?",
+            (montant, entreprise_id),
+        )
 
-    connection = get_connection()
-    cursor = connection.cursor()
 
-    cursor.execute("""
-        UPDATE entreprises
-        SET solde_initial = ?
-        WHERE id = ?
-    """, (
-        montant,
-        entreprise_id
-    ))
-
-    connection.commit()
-    connection.close()
+def calculer_solde(entreprise_id):
+    """Solde initial + recettes - dépenses."""
+    return (
+        obtenir_solde_initial(entreprise_id)
+        + calculer_total("recettes", entreprise_id)
+        - calculer_total("depenses", entreprise_id)
+    )
