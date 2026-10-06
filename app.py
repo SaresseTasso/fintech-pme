@@ -1,3 +1,7 @@
+import database
+st_names = [n for n in dir(database) if not n.startswith("_")]
+import streamlit as st
+st.write(st_names)
 import io
 import re
 import time
