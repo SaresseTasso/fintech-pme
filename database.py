@@ -49,6 +49,41 @@ def initialize_database():
     except sqlite3.OperationalError:
 
         pass
+    # ============================================================
+# CREATION D'ENTREPRISE
+# ============================================================
+
+def creer_entreprise(
+    nom,
+    secteur,
+    devise="FCFA",
+    solde_initial=0
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        INSERT INTO entreprises (
+            nom,
+            secteur,
+            devise,
+            solde_initial
+        )
+        VALUES (?, ?, ?, ?)
+    """, (
+        nom,
+        secteur,
+        devise,
+        solde_initial
+    ))
+
+    entreprise_id = cursor.lastrowid
+
+    connection.commit()
+    connection.close()
+
+    return entreprise_id
 
     # --------------------------------------------------------
     # UTILISATEURS / ADMINISTRATEURS
