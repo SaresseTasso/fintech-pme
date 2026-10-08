@@ -26,6 +26,7 @@ from database import (
 from rapports import page_rapports_avances
 from parametres import page_parametres_avances
 from recuperation import interface_mot_de_passe_oublie
+from verification import interface_inscription
 
 # ============================================================
 # CONFIGURATION
@@ -188,9 +189,6 @@ def page_authentification():
         ["🔐 Connexion administrateur", "📝 Créer un compte", "🔑 Mot de passe oublié"]
     )
 
-    with onglet_oubli:
-        interface_mot_de_passe_oublie()
-
     # ---------------- Connexion ----------------
     with onglet_connexion:
 
@@ -231,6 +229,14 @@ def page_authentification():
                         st.error("Trop de tentatives. Compte bloqué pendant 5 minutes.")
                     else:
                         st.error("Adresse e-mail ou mot de passe incorrect.")
+
+    # ---------------- Inscription (avec vérification e-mail) ----------------
+    with onglet_inscription:
+        interface_inscription()
+
+    # ---------------- Mot de passe oublié ----------------
+    with onglet_oubli:
+        interface_mot_de_passe_oublie()
 
     # ---------------- Inscription ----------------
     with onglet_inscription:
