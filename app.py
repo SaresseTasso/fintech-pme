@@ -230,7 +230,7 @@ def page_authentification():
                     else:
                         st.error("Adresse e-mail ou mot de passe incorrect.")
 
-    # ---------------- Inscription (avec vérification e-mail) ----------------
+      # ---------------- Inscription (avec vérification e-mail) ----------------
     with onglet_inscription:
         interface_inscription()
 
@@ -238,6 +238,10 @@ def page_authentification():
     with onglet_oubli:
         interface_mot_de_passe_oublie()
 
+
+if not st.session_state.connecte:
+    page_authentification()
+    st.stop()
     # ---------------- Inscription ----------------
     with onglet_inscription:
 
