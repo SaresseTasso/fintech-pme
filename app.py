@@ -24,6 +24,8 @@ from database import (
     modifier_solde_initial,
 )
 from rapports import page_rapports_avances
+from parametres import page_parametres_avances
+from recuperation import interface_mot_de_passe_oublie
 
 # ============================================================
 # CONFIGURATION
@@ -180,8 +182,8 @@ def page_authentification():
     )
     st.divider()
 
-    onglet_connexion, onglet_inscription = st.tabs(
-        ["🔐 Connexion administrateur", "📝 Créer un compte"]
+    onglet_connexion, onglet_inscription, onglet_oubli = st.tabs(
+        ["🔐 Connexion administrateur", "📝 Créer un compte", "🔑 Mot de passe oublié"]
     )
 
     # ---------------- Connexion ----------------
@@ -292,6 +294,8 @@ def page_authentification():
                     st.error("Cette adresse e-mail possède déjà un compte.")
                 except Exception:
                     st.error("Une erreur est survenue. Veuillez réessayer.")
+                        with onglet_oubli:
+        interface_mot_de_passe_oublie()
 
 
 if not st.session_state.connecte:
@@ -724,4 +728,4 @@ elif menu == "🏦 Trésorerie":
 elif menu == "📈 Rapports":
     page_rapports_avances(entreprise_id)
 elif menu == "⚙️ Paramètres":
-    page_parametres()
+    page_parametres_avances(entreprise_id)
