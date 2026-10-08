@@ -177,14 +177,19 @@ def exporter_excel(df, nom_feuille, titre, administrateur):
 def page_authentification():
 
     st.title("💼 FinTech PME")
+
     st.markdown(
         "### Plateforme de gestion financière pour les petites et moyennes entreprises"
     )
+
     st.divider()
 
     onglet_connexion, onglet_inscription, onglet_oubli = st.tabs(
         ["🔐 Connexion administrateur", "📝 Créer un compte", "🔑 Mot de passe oublié"]
     )
+
+    with onglet_oubli:
+        interface_mot_de_passe_oublie()
 
     # ---------------- Connexion ----------------
     with onglet_connexion:
@@ -294,9 +299,6 @@ def page_authentification():
                     st.error("Cette adresse e-mail possède déjà un compte.")
                 except Exception:
                     st.error("Une erreur est survenue. Veuillez réessayer.")
-
-    with onglet_oubli:
-        interface_mot_de_passe_oublie()
 
 
 if not st.session_state.connecte:
