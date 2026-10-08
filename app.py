@@ -23,6 +23,7 @@ from database import (
     obtenir_solde_initial,
     modifier_solde_initial,
 )
+from rapports import page_rapports_avances
 
 # ============================================================
 # CONFIGURATION
@@ -721,6 +722,6 @@ elif menu == "💸 Dépenses":
 elif menu == "🏦 Trésorerie":
     page_tresorerie(entreprise_id)
 elif menu == "📈 Rapports":
-    page_rapports(entreprise_id)
+    page_rapports_avances(entreprise_id)
 elif menu == "⚙️ Paramètres":
     page_parametres()
