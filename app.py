@@ -294,8 +294,8 @@ def page_authentification():
                     st.error("Cette adresse e-mail possède déjà un compte.")
                 except Exception:
                     st.error("Une erreur est survenue. Veuillez réessayer.")
-                        with onglet_oubli:
-        interface_mot_de_passe_oublie()
+                with onglet_oubli:
+                    interface_mot_de_passe_oublie()
 
 
 if not st.session_state.connecte:
