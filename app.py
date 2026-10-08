@@ -295,7 +295,7 @@ def page_authentification():
                         "Vous pouvez maintenant vous connecter "
                         "avec votre adresse e-mail et votre mot de passe."
                     )
-                                except ValueError:
+                except ValueError:
                     st.error("Cette adresse e-mail possède déjà un compte.")
                 except Exception:
                     st.error("Une erreur est survenue. Veuillez réessayer.")
